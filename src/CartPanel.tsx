@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../convex/_generated/api'
 
@@ -5,11 +6,47 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   const cart = useQuery(api.cart.getCart)
   const updateQuantity = useMutation(api.cart.updateQuantity)
   const removeFromCart = useMutation(api.cart.removeFromCart)
+  const createOrder = useMutation(api.orders.createOrder)
+  const [checkingOut, setCheckingOut] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const total = cart?.reduce(
     (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
     0
   ) ?? 0
+
+  const handleCheckout = async () => {
+    setError(null)
+    setCheckingOut(true)
+    try {
+      await createOrder({})
+      setSuccess(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Checkout failed')
+    } finally {
+      setCheckingOut(false)
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="fixed inset-0 z-20 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="text-5xl mb-4">✅</div>
+          <h2 className="text-xl font-bold mb-2">Order placed!</h2>
+          <p className="text-slate-500 mb-6">Your order has been created successfully.</p>
+          <button
+            onClick={onClose}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
+          >
+            Continue Shopping
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end">
@@ -66,14 +103,21 @@ function CartPanel({ onClose }: { onClose: () => void }) {
 
         {cart && cart.length > 0 && (
           <div className="p-6 border-t border-slate-200">
+            {error && (
+              <p className="text-red-500 text-sm mb-3">{error}</p>
+            )}
             <div className="flex justify-between items-center mb-4">
               <span className="font-semibold">Total</span>
               <span className="font-bold text-lg text-indigo-600">
                 KSh {total.toLocaleString()}
               </span>
             </div>
-            <button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium">
-              Checkout
+            <button
+              onClick={handleCheckout}
+              disabled={checkingOut}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-3 rounded-lg font-medium"
+            >
+              {checkingOut ? 'Placing order...' : 'Checkout'}
             </button>
           </div>
         )}
