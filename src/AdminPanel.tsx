@@ -13,7 +13,8 @@ const emptyForm = {
 }
 
 function AdminPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'products' | 'users'>('products')
+  const [tab, setTab] = useState<'dashboard' | 'products' | 'orders' | 'users'>('dashboard')
+
   const products = useQuery(api.products.listProducts)
   const createProduct = useMutation(api.products.createProduct)
   const updateProduct = useMutation(api.products.updateProduct)
@@ -21,6 +22,10 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
 
   const users = useQuery(api.users.listAllUsers)
   const setUserRole = useMutation(api.users.setUserRole)
+
+  const stats = useQuery(api.orders.getStats)
+  const allOrders = useQuery(api.orders.getAllOrders)
+  const updateOrderStatus = useMutation(api.orders.updateOrderStatus)
 
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<Id<'products'> | null>(null)
@@ -82,12 +87,28 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
 
         <div className="flex gap-2 mb-6">
           <button
+            onClick={() => setTab('dashboard')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              tab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            Dashboard
+          </button>
+          <button
             onClick={() => setTab('products')}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
               tab === 'products' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
             }`}
           >
             Products
+          </button>
+          <button
+            onClick={() => setTab('orders')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              tab === 'orders' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+            }`}
+          >
+            Orders
           </button>
           <button
             onClick={() => setTab('users')}
@@ -98,6 +119,44 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
             Users
           </button>
         </div>
+
+        {tab === 'dashboard' && stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <p className="text-slate-500 text-sm mb-1">Total Revenue</p>
+              <p className="text-2xl font-bold text-indigo-600">
+                KSh {stats.totalRevenue.toLocaleString()}
+              </p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <p className="text-slate-500 text-sm mb-1">Total Orders</p>
+              <p className="text-2xl font-bold">{stats.totalOrders}</p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <p className="text-slate-500 text-sm mb-1">Pending Orders</p>
+              <p className="text-2xl font-bold text-amber-500">{stats.pendingOrders}</p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-sm">
+              <p className="text-slate-500 text-sm mb-1">Total Customers</p>
+              <p className="text-2xl font-bold">{stats.totalCustomers}</p>
+            </div>
+            <div className="bg-white rounded-xl p-5 shadow-sm col-span-2 md:col-span-4">
+              <p className="text-slate-500 text-sm mb-3">Low Stock Alert (below 5 units)</p>
+              {stats.lowStockProducts.length === 0 ? (
+                <p className="text-slate-400 text-sm">All products well-stocked.</p>
+              ) : (
+                <ul className="space-y-1">
+                  {stats.lowStockProducts.map((p) => (
+                    <li key={p._id} className="text-sm flex justify-between">
+                      <span>{p.name}</span>
+                      <span className="text-red-500 font-medium">{p.stock} left</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
 
         {tab === 'products' && (
           <>
@@ -212,6 +271,48 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {tab === 'orders' && (
+          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-100 text-left">
+                <tr>
+                  <th className="p-3">Customer</th>
+                  <th className="p-3">Items</th>
+                  <th className="p-3">Total</th>
+                  <th className="p-3">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allOrders?.map((order) => (
+                  <tr key={order._id} className="border-t border-slate-100">
+                    <td className="p-3">{order.customer?.name ?? 'Unknown'}</td>
+                    <td className="p-3">{order.items.length} item(s)</td>
+                    <td className="p-3">KSh {order.total.toLocaleString()}</td>
+                    <td className="p-3">
+                      <select
+                        value={order.status}
+                        onChange={(e) =>
+                          updateOrderStatus({
+                            orderId: order._id,
+                            status: e.target.value as any,
+                          })
+                        }
+                        className="border border-slate-300 rounded-lg px-2 py-1 text-sm"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="paid">Paid</option>
+                        <option value="shipped">Shipped</option>
+                        <option value="delivered">Delivered</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {tab === 'users' && (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-sm">
@@ -220,7 +321,6 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                   <th className="p-3">Name</th>
                   <th className="p-3">Email</th>
                   <th className="p-3">Role</th>
-                  <th className="p-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -229,32 +329,15 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                     <td className="p-3">{u.name}</td>
                     <td className="p-3">{u.email}</td>
                     <td className="p-3">
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${
-                          u.role === 'admin'
-                            ? 'bg-indigo-100 text-indigo-700'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
+                      <select
+                        value={u.role ?? 'customer'}
+                        onChange={(e) => setUserRole({ userId: u._id, role: e.target.value })}
+                        className="border border-slate-300 rounded-lg px-2 py-1 text-sm"
                       >
-                        {u.role ?? 'customer'}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      {u.role === 'admin' ? (
-                        <button
-                          onClick={() => setUserRole({ userId: u._id, role: 'customer' })}
-                          className="text-slate-500 hover:underline"
-                        >
-                          Demote to Customer
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setUserRole({ userId: u._id, role: 'admin' })}
-                          className="text-indigo-600 hover:underline"
-                        >
-                          Promote to Admin
-                        </button>
-                      )}
+                        <option value="customer">Customer</option>
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                      </select>
                     </td>
                   </tr>
                 ))}
