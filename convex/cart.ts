@@ -61,3 +61,21 @@ export const getCart = query({
     return withProducts
   },
 })
+
+export const removeFromCart = mutation({
+  args: { cartItemId: v.id("cartItems") },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.cartItemId)
+  },
+})
+
+export const updateQuantity = mutation({
+  args: { cartItemId: v.id("cartItems"), quantity: v.number() },
+  handler: async (ctx, args) => {
+    if (args.quantity <= 0) {
+      await ctx.db.delete(args.cartItemId)
+      return
+    }
+    await ctx.db.patch(args.cartItemId, { quantity: args.quantity })
+  },
+})
