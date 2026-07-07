@@ -1,6 +1,20 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 
+// Helper: check if current user is admin
+async function requireAdmin(ctx: any) {
+  const identity = await ctx.auth.getUserIdentity()
+  if (!identity) throw new Error("Not authenticated")
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", identity.subject))
+    .unique()
+
+  if (!user || user.role !== "admin") throw new Error("Not authorized")
+  return user
+}
+
 // Get all products
 export const listProducts = query({
   args: {},
@@ -20,7 +34,7 @@ export const listByCategory = query({
   },
 })
 
-// Create a new product (for you, the admin, to add electronics)
+// Create a new product (admin only)
 export const createProduct = mutation({
   args: {
     name: v.string(),
@@ -32,7 +46,36 @@ export const createProduct = mutation({
     specs: v.optional(v.record(v.string(), v.string())),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx)
     const productId = await ctx.db.insert("products", args)
     return productId
+  },
+})
+
+// Update an existing product (admin only)
+export const updateProduct = mutation({
+  args: {
+    productId: v.id("products"),
+    name: v.string(),
+    description: v.string(),
+    price: v.number(),
+    stock: v.number(),
+    category: v.string(),
+    images: v.array(v.string()),
+    specs: v.optional(v.record(v.string(), v.string())),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx)
+    const { productId, ...data } = args
+    await ctx.db.patch(productId, data)
+  },
+})
+
+// Delete a product (admin only)
+export const deleteProduct = mutation({
+  args: { productId: v.id("products") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx)
+    await ctx.db.delete(args.productId)
   },
 })

@@ -4,13 +4,16 @@ import { api } from '../convex/_generated/api'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { categories } from './data/categories'
 import CartPanel from './CartPanel'
+import AdminPanel from './AdminPanel'
 
 function App() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const products = useQuery(api.products.listProducts)
   const cart = useQuery(api.cart.getCart)
   const addToCart = useMutation(api.cart.addToCart)
+  const currentUser = useQuery(api.users.getCurrentUser)
 
   const filteredProducts = activeCategory
     ? products?.filter((p) => p.category === activeCategory)
@@ -18,12 +21,24 @@ function App() {
 
   const cartCount = cart?.reduce((sum, item) => sum + item.quantity, 0) ?? 0
 
+  if (adminOpen) {
+    return <AdminPanel onClose={() => setAdminOpen(false)} />
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <nav className="bg-white border-b border-slate-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">NeuraTech</h1>
           <div className="flex items-center gap-4">
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={() => setAdminOpen(true)}
+                className="text-sm font-medium text-slate-600 hover:text-indigo-600"
+              >
+                Admin
+              </button>
+            )}
             <button
               onClick={() => setCartOpen(true)}
               className="relative p-2 hover:bg-slate-100 rounded-lg"

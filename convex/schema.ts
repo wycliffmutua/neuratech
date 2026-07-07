@@ -3,11 +3,12 @@ import { v } from "convex/values"
 
 export default defineSchema({
   users: defineTable({
-    clerkId: v.string(),
-    email: v.string(),
-    name: v.string(),
-    imageUrl: v.optional(v.string()),
-  }).index("by_clerk_id", ["clerkId"]),
+  clerkId: v.string(),
+  email: v.string(),
+  name: v.string(),
+  imageUrl: v.optional(v.string()),
+  role: v.optional(v.string()), // "admin" or undefined for regular users
+}).index("by_clerk_id", ["clerkId"]),
 
   products: defineTable({
     name: v.string(),
