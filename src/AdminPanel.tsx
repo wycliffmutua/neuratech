@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
+import { categories } from './data/categories'
 
 const emptyForm = {
   name: '',
@@ -185,13 +186,19 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                   className="border border-slate-300 rounded-lg px-3 py-2"
                   required
                 />
-                <input
-                  placeholder="Category (e.g. Headphones)"
+                <select
                   value={form.category}
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
                   className="border border-slate-300 rounded-lg px-3 py-2"
                   required
-                />
+                >
+                  <option value="">Select a category</option>
+                  {categories.flatMap((cat) => cat.subcategories).map((sub) => (
+                    <option key={sub} value={sub}>
+                      {sub}
+                    </option>
+                  ))}
+                </select>
                 <input
                   type="number"
                   placeholder="Price (KSh)"
