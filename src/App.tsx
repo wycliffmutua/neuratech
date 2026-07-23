@@ -5,11 +5,14 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-reac
 import { categories } from './data/categories'
 import CartPanel from './CartPanel'
 import AdminPanel from './AdminPanel'
+import ProductDetail from './ProductDetail'
+import type { Id } from '../convex/_generated/dataModel'
 
 function App() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
   const [cartOpen, setCartOpen] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
+  const [selectedProductId, setSelectedProductId] = useState<Id<'products'> | null>(null)
   const products = useQuery(api.products.listProducts)
   const cart = useQuery(api.cart.getCart)
   const addToCart = useMutation(api.cart.addToCart)
@@ -23,6 +26,15 @@ function App() {
 
   if (adminOpen) {
     return <AdminPanel onClose={() => setAdminOpen(false)} />
+  }
+
+  if (selectedProductId) {
+    return (
+      <ProductDetail
+        productId={selectedProductId}
+        onBack={() => setSelectedProductId(null)}
+      />
+    )
   }
 
   return (
@@ -100,7 +112,8 @@ function App() {
           {filteredProducts?.map((product) => (
             <div
               key={product._id}
-              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
+              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col cursor-pointer"
+              onClick={() => setSelectedProductId(product._id)}
             >
               <div className="aspect-square bg-slate-100">
                 <img
@@ -119,7 +132,10 @@ function App() {
                     KSh {product.price.toLocaleString()}
                   </p>
                   <button
-                    onClick={() => addToCart({ productId: product._id, quantity: 1 })}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      addToCart({ productId: product._id, quantity: 1 })
+                    }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg font-medium"
                   >
                     Add to Cart
