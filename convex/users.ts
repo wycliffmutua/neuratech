@@ -71,3 +71,40 @@ export const setUserRole = mutation({
     await ctx.db.patch(args.userId, { role: args.role })
   },
 })
+export const getCustomersWithOrders = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+
+    const admin = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .unique()
+
+    if (!admin || admin.role !== "admin") throw new Error("Not authorized")
+
+    const customers = await ctx.db.query("users").collect()
+
+    const withOrders = await Promise.all(
+      customers
+        .filter((u) => u.role === "customer" || !u.role)
+        .map(async (customer) => {
+          const orders = await ctx.db
+            .query("orders")
+            .withIndex("by_user", (q) => q.eq("userId", customer._id))
+            .collect()
+
+          return {
+            ...customer,
+            orders: orders.sort((a, b) => b.createdAt - a.createdAt),
+            totalSpent: orders
+              .filter((o) => o.status !== "cancelled")
+              .reduce((sum, o) => sum + o.total, 0),
+          }
+        })
+    )
+
+    return withOrders.sort((a, b) => b.totalSpent - a.totalSpent)
+  },
+})

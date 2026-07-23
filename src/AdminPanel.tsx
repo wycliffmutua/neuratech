@@ -19,6 +19,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'dashboard' | 'products' | 'orders' | 'users'>(
     isStaffOnly ? 'orders' : 'dashboard'
   )
+  const [drillDown, setDrillDown] = useState<'revenue' | 'orders' | 'pending' | 'customers' | null>(null)
 
   const products = useQuery(api.products.listProducts)
   const createProduct = useMutation(api.products.createProduct)
@@ -31,6 +32,11 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
   const stats = useQuery(api.orders.getStats, isStaffOnly ? "skip" : {})
   const allOrders = useQuery(api.orders.getAllOrders)
   const updateOrderStatus = useMutation(api.orders.updateOrderStatus)
+
+  const customersWithOrders = useQuery(
+    api.users.getCustomersWithOrders,
+    drillDown === 'customers' && !isStaffOnly ? {} : "skip"
+  )
 
   const [form, setForm] = useState(emptyForm)
   const [editingId, setEditingId] = useState<Id<'products'> | null>(null)
@@ -95,7 +101,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
         <div className="flex gap-2 mb-6">
           {!isStaffOnly && (
             <button
-              onClick={() => setTab('dashboard')}
+              onClick={() => { setTab('dashboard'); setDrillDown(null) }}
               className={`px-4 py-2 rounded-lg text-sm font-medium ${
                 tab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
               }`}
@@ -133,26 +139,38 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {tab === 'dashboard' && !isStaffOnly && stats && (
+        {tab === 'dashboard' && !isStaffOnly && stats && !drillDown && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl p-5 shadow-sm">
+            <button
+              onClick={() => setDrillDown('revenue')}
+              className="bg-white rounded-xl p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
               <p className="text-slate-500 text-sm mb-1">Total Revenue</p>
               <p className="text-2xl font-bold text-indigo-600">
                 KSh {stats.totalRevenue.toLocaleString()}
               </p>
-            </div>
-            <div className="bg-white rounded-xl p-5 shadow-sm">
+            </button>
+            <button
+              onClick={() => setDrillDown('orders')}
+              className="bg-white rounded-xl p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
               <p className="text-slate-500 text-sm mb-1">Total Orders</p>
               <p className="text-2xl font-bold">{stats.totalOrders}</p>
-            </div>
-            <div className="bg-white rounded-xl p-5 shadow-sm">
+            </button>
+            <button
+              onClick={() => setDrillDown('pending')}
+              className="bg-white rounded-xl p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
               <p className="text-slate-500 text-sm mb-1">Pending Orders</p>
               <p className="text-2xl font-bold text-amber-500">{stats.pendingOrders}</p>
-            </div>
-            <div className="bg-white rounded-xl p-5 shadow-sm">
+            </button>
+            <button
+              onClick={() => setDrillDown('customers')}
+              className="bg-white rounded-xl p-5 shadow-sm text-left hover:shadow-md transition-shadow"
+            >
               <p className="text-slate-500 text-sm mb-1">Total Customers</p>
               <p className="text-2xl font-bold">{stats.totalCustomers}</p>
-            </div>
+            </button>
             <div className="bg-white rounded-xl p-5 shadow-sm col-span-2 md:col-span-4">
               <p className="text-slate-500 text-sm mb-3">Low Stock Alert (below 5 units)</p>
               {stats.lowStockProducts.length === 0 ? (
@@ -167,6 +185,161 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'dashboard' && !isStaffOnly && drillDown === 'revenue' && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <button onClick={() => setDrillDown(null)} className="text-indigo-600 text-sm mb-4 hover:underline">
+              &larr; Back to overview
+            </button>
+            <h3 className="font-semibold mb-3">Revenue Breakdown (all non-cancelled orders)</h3>
+            <table className="w-full text-sm">
+              <thead className="text-left border-b border-slate-100">
+                <tr>
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Customer</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allOrders
+                  ?.filter((o) => o.status !== 'cancelled')
+                  .map((order) => (
+                    <tr key={order._id} className="border-b border-slate-50">
+                      <td className="py-2">
+                        {new Date(order.createdAt).toLocaleDateString('en-KE', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                        })}
+                      </td>
+                      <td className="py-2">{order.customer?.name ?? 'Unknown'}</td>
+                      <td className="py-2 capitalize">{order.status}</td>
+                      <td className="py-2 text-right font-medium">
+                        KSh {order.total.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === 'dashboard' && !isStaffOnly && drillDown === 'orders' && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <button onClick={() => setDrillDown(null)} className="text-indigo-600 text-sm mb-4 hover:underline">
+              &larr; Back to overview
+            </button>
+            <h3 className="font-semibold mb-3">All Orders</h3>
+            <table className="w-full text-sm">
+              <thead className="text-left border-b border-slate-100">
+                <tr>
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Customer</th>
+                  <th className="py-2">Items</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allOrders?.map((order) => (
+                  <tr key={order._id} className="border-b border-slate-50">
+                    <td className="py-2">
+                      {new Date(order.createdAt).toLocaleDateString('en-KE', {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-2">{order.customer?.name ?? 'Unknown'}</td>
+                    <td className="py-2">
+                      {order.items.map((i) => i.product?.name ?? 'Unknown').join(', ')}
+                    </td>
+                    <td className="py-2 capitalize">{order.status}</td>
+                    <td className="py-2 text-right font-medium">
+                      KSh {order.total.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === 'dashboard' && !isStaffOnly && drillDown === 'pending' && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <button onClick={() => setDrillDown(null)} className="text-indigo-600 text-sm mb-4 hover:underline">
+              &larr; Back to overview
+            </button>
+            <h3 className="font-semibold mb-3">Pending Orders</h3>
+            <table className="w-full text-sm">
+              <thead className="text-left border-b border-slate-100">
+                <tr>
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Customer</th>
+                  <th className="py-2">Items</th>
+                  <th className="py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allOrders
+                  ?.filter((o) => o.status === 'pending')
+                  .map((order) => (
+                    <tr key={order._id} className="border-b border-slate-50">
+                      <td className="py-2">
+                        {new Date(order.createdAt).toLocaleDateString('en-KE', {
+                          year: 'numeric', month: 'short', day: 'numeric',
+                        })}
+                      </td>
+                      <td className="py-2">{order.customer?.name ?? 'Unknown'}</td>
+                      <td className="py-2">
+                        {order.items.map((i) => i.product?.name ?? 'Unknown').join(', ')}
+                      </td>
+                      <td className="py-2 text-right font-medium">
+                        KSh {order.total.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {tab === 'dashboard' && !isStaffOnly && drillDown === 'customers' && (
+          <div className="bg-white rounded-xl shadow-sm p-5">
+            <button onClick={() => setDrillDown(null)} className="text-indigo-600 text-sm mb-4 hover:underline">
+              &larr; Back to overview
+            </button>
+            <h3 className="font-semibold mb-3">Customers (highest spend first)</h3>
+            <div className="space-y-4">
+              {customersWithOrders?.map((customer) => (
+                <div key={customer._id} className="border-b border-slate-100 pb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <div>
+                      <p className="font-medium">{customer.name}</p>
+                      <p className="text-xs text-slate-400">{customer.email}</p>
+                    </div>
+                    <p className="font-semibold text-indigo-600">
+                      KSh {customer.totalSpent.toLocaleString()} lifetime
+                    </p>
+                  </div>
+                  {customer.orders.length === 0 ? (
+                    <p className="text-xs text-slate-400">No orders yet.</p>
+                  ) : (
+                    <ul className="text-xs text-slate-500 space-y-1">
+                      {customer.orders.map((o) => (
+                        <li key={o._id} className="flex justify-between">
+                          <span>
+                            {new Date(o.createdAt).toLocaleDateString('en-KE', {
+                              year: 'numeric', month: 'short', day: 'numeric',
+                            })} — {o.status}
+                          </span>
+                          <span>KSh {o.total.toLocaleString()}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
         )}
