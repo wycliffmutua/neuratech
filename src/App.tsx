@@ -43,14 +43,14 @@ function App() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">NeuraTech</h1>
           <div className="flex items-center gap-4">
-            {currentUser?.role === 'admin' && (
-              <button
-                onClick={() => setAdminOpen(true)}
-                className="text-sm font-medium text-slate-600 hover:text-indigo-600"
-              >
-                Admin
-              </button>
-            )}
+           {(currentUser?.role === 'admin' || currentUser?.role === 'staff') && (
+  <button
+    onClick={() => setAdminOpen(true)}
+    className="text-sm font-medium text-slate-600 hover:text-indigo-600"
+  >
+    {currentUser?.role === 'admin' ? 'Admin' : 'Orders'}
+  </button>
+)}
             <button
               onClick={() => setCartOpen(true)}
               className="relative p-2 hover:bg-slate-100 rounded-lg"

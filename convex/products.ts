@@ -23,6 +23,14 @@ export const listProducts = query({
   },
 })
 
+// Get a single product by ID
+export const getProduct = query({
+  args: { productId: v.id("products") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.productId)
+  },
+})
+
 // Get products by category
 export const listByCategory = query({
   args: { category: v.string() },

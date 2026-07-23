@@ -13,17 +13,21 @@ const emptyForm = {
 }
 
 function AdminPanel({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'dashboard' | 'products' | 'orders' | 'users'>('dashboard')
+  const currentUser = useQuery(api.users.getCurrentUser)
+  const isStaffOnly = currentUser?.role === 'staff'
+  const [tab, setTab] = useState<'dashboard' | 'products' | 'orders' | 'users'>(
+    isStaffOnly ? 'orders' : 'dashboard'
+  )
 
   const products = useQuery(api.products.listProducts)
   const createProduct = useMutation(api.products.createProduct)
   const updateProduct = useMutation(api.products.updateProduct)
   const deleteProduct = useMutation(api.products.deleteProduct)
 
-  const users = useQuery(api.users.listAllUsers)
+  const users = useQuery(api.users.listAllUsers, isStaffOnly ? "skip" : {})
   const setUserRole = useMutation(api.users.setUserRole)
 
-  const stats = useQuery(api.orders.getStats)
+  const stats = useQuery(api.orders.getStats, isStaffOnly ? "skip" : {})
   const allOrders = useQuery(api.orders.getAllOrders)
   const updateOrderStatus = useMutation(api.orders.updateOrderStatus)
 
@@ -76,7 +80,9 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-30 bg-slate-50 overflow-y-auto">
       <div className="max-w-5xl mx-auto p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Admin Panel</h1>
+          <h1 className="text-2xl font-bold">
+            {isStaffOnly ? 'Order Processing' : 'Admin Panel'}
+          </h1>
           <button
             onClick={onClose}
             className="bg-slate-200 hover:bg-slate-300 px-4 py-2 rounded-lg font-medium"
@@ -86,22 +92,26 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setTab('dashboard')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setTab('products')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === 'products' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            Products
-          </button>
+          {!isStaffOnly && (
+            <button
+              onClick={() => setTab('dashboard')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                tab === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              Dashboard
+            </button>
+          )}
+          {!isStaffOnly && (
+            <button
+              onClick={() => setTab('products')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                tab === 'products' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              Products
+            </button>
+          )}
           <button
             onClick={() => setTab('orders')}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
@@ -110,17 +120,19 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           >
             Orders
           </button>
-          <button
-            onClick={() => setTab('users')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === 'users' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            Users
-          </button>
+          {!isStaffOnly && (
+            <button
+              onClick={() => setTab('users')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                tab === 'users' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              Users
+            </button>
+          )}
         </div>
 
-        {tab === 'dashboard' && stats && (
+        {tab === 'dashboard' && !isStaffOnly && stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white rounded-xl p-5 shadow-sm">
               <p className="text-slate-500 text-sm mb-1">Total Revenue</p>
@@ -158,7 +170,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {tab === 'products' && (
+        {tab === 'products' && !isStaffOnly && (
           <>
             <form onSubmit={handleSubmit} className="bg-white rounded-xl p-6 mb-8 shadow-sm space-y-4">
               <h2 className="font-semibold text-lg">
@@ -313,7 +325,7 @@ function AdminPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {tab === 'users' && (
+        {tab === 'users' && !isStaffOnly && (
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-slate-100 text-left">
