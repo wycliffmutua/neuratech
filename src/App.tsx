@@ -7,6 +7,7 @@ import CartPanel from './CartPanel'
 import AdminPanel from './AdminPanel'
 import ProductDetail from './ProductDetail'
 import type { Id } from '../convex/_generated/dataModel'
+import MyOrders from './MyOrders'
 
 function App() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
@@ -17,6 +18,7 @@ function App() {
   const cart = useQuery(api.cart.getCart)
   const addToCart = useMutation(api.cart.addToCart)
   const currentUser = useQuery(api.users.getCurrentUser)
+  const [ordersOpen, setOrdersOpen] = useState(false)
 
   const filteredProducts = activeCategory
     ? products?.filter((p) => p.category === activeCategory)
@@ -36,6 +38,9 @@ function App() {
       />
     )
   }
+  if (ordersOpen) {
+    return <MyOrders onClose={() => setOrdersOpen(false)} />
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -43,6 +48,14 @@ function App() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-indigo-600">NeuraTech</h1>
           <div className="flex items-center gap-4">
+            <SignedIn>
+              <button
+                onClick={() => setOrdersOpen(true)}
+                className="text-sm font-medium text-slate-600 hover:text-indigo-600"
+              >
+                My Orders
+              </button>
+            </SignedIn>
            {(currentUser?.role === 'admin' || currentUser?.role === 'staff') && (
   <button
     onClick={() => setAdminOpen(true)}
