@@ -1,47 +1,154 @@
-import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useState, useEffect } from 'react'
+import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '../convex/_generated/api'
+import type { Id } from '../convex/_generated/dataModel'
 
 function CartPanel({ onClose }: { onClose: () => void }) {
   const cart = useQuery(api.cart.getCart)
   const updateQuantity = useMutation(api.cart.updateQuantity)
   const removeFromCart = useMutation(api.cart.removeFromCart)
   const createOrder = useMutation(api.orders.createOrder)
-  const [checkingOut, setCheckingOut] = useState(false)
+  const initiateSTKPush = useAction(api.mpesa.initiateSTKPush)
+
+  const [step, setStep] = useState<'cart' | 'phone' | 'waiting' | 'success' | 'failed'>('cart')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [pendingOrderId, setPendingOrderId] = useState<Id<'orders'> | null>(null)
+  const [paidAmount, setPaidAmount] = useState(0)
+
+  const myOrders = useQuery(
+    api.orders.getMyOrders,
+    step === 'waiting' ? {} : 'skip'
+  )
 
   const total = cart?.reduce(
     (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
     0
   ) ?? 0
 
-  const handleCheckout = async () => {
+  useEffect(() => {
+    if (step !== 'waiting' || !pendingOrderId || !myOrders) return
+    const order = myOrders.find((o) => o._id === pendingOrderId)
+    if (order?.status === 'paid') {
+      setStep('success')
+    } else if (order?.status === 'cancelled') {
+      setStep('failed')
+    }
+  }, [myOrders, step, pendingOrderId])
+
+  const handleProceedToPhone = () => {
     setError(null)
-    setCheckingOut(true)
+    setStep('phone')
+  }
+
+  const handlePay = async () => {
+    setError(null)
+    if (!/^(0|254|\+254)?[71]\d{8}$/.test(phone.replace(/\s/g, ''))) {
+      setError('Enter a valid Safaricom number (e.g. 0712345678)')
+      return
+    }
+
+    const amountToPay = total
+    setPaidAmount(amountToPay)
+
     try {
-      await createOrder({})
-      setSuccess(true)
+      const orderId = await createOrder({})
+      setPendingOrderId(orderId)
+      setStep('waiting')
+      await initiateSTKPush({ phoneNumber: phone, amount: amountToPay, orderId })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Checkout failed')
-    } finally {
-      setCheckingOut(false)
+      setError(err instanceof Error ? err.message : 'Payment failed to start')
+      setStep('phone')
     }
   }
 
-  if (success) {
+  if (step === 'success') {
     return (
       <div className="fixed inset-0 z-20 flex justify-end">
         <div className="absolute inset-0 bg-black/40" onClick={onClose} />
         <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
           <div className="text-5xl mb-4">✅</div>
-          <h2 className="text-xl font-bold mb-2">Order placed!</h2>
-          <p className="text-slate-500 mb-6">Your order has been created successfully.</p>
+          <h2 className="text-xl font-bold mb-2">Payment received!</h2>
+          <p className="text-slate-500 mb-6">Your order has been paid and confirmed.</p>
           <button
             onClick={onClose}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
           >
             Continue Shopping
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'failed') {
+    return (
+      <div className="fixed inset-0 z-20 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="text-5xl mb-4">❌</div>
+          <h2 className="text-xl font-bold mb-2">Payment not completed</h2>
+          <p className="text-slate-500 mb-6">
+            The M-Pesa payment was cancelled or failed. Your order is saved — you can retry from My Orders.
+          </p>
+          <button
+            onClick={onClose}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'waiting') {
+    return (
+      <div className="fixed inset-0 z-20 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
+          <div className="text-5xl mb-4 animate-pulse">📱</div>
+          <h2 className="text-xl font-bold mb-2">Check your phone</h2>
+          <p className="text-slate-500">
+            Enter your M-Pesa PIN on the prompt sent to {phone} to complete payment of{' '}
+            <span className="font-semibold text-indigo-600">KSh {paidAmount.toLocaleString()}</span>.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'phone') {
+    return (
+      <div className="fixed inset-0 z-20 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col p-6">
+          <button
+            onClick={() => setStep('cart')}
+            className="text-slate-400 hover:text-slate-700 text-sm mb-6 self-start"
+          >
+            &larr; Back to cart
+          </button>
+          <h2 className="text-xl font-bold mb-2">Pay with M-Pesa</h2>
+          <p className="text-slate-500 text-sm mb-6">
+            Enter the phone number to receive the payment prompt.
+          </p>
+          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
+          <input
+            type="tel"
+            placeholder="0712345678"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 mb-4"
+          />
+          <p className="text-sm text-slate-500 mb-6">
+            Amount: <span className="font-semibold text-indigo-600">KSh {total.toLocaleString()}</span>
+          </p>
+          <button
+            onClick={handlePay}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
+          >
+            Send Payment Request
           </button>
         </div>
       </div>
@@ -113,11 +220,10 @@ function CartPanel({ onClose }: { onClose: () => void }) {
               </span>
             </div>
             <button
-              onClick={handleCheckout}
-              disabled={checkingOut}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-3 rounded-lg font-medium"
+              onClick={handleProceedToPhone}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
             >
-              {checkingOut ? 'Placing order...' : 'Checkout'}
+              Checkout with M-Pesa
             </button>
           </div>
         )}

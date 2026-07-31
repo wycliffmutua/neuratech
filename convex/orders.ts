@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server"
+import { mutation, query, internalMutation } from "./_generated/server"
 import { v } from "convex/values"
 
 export const createOrder = mutation({
@@ -86,7 +86,25 @@ export const getMyOrders = query({
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect()
 
-    return orders.sort((a, b) => b.createdAt - a.createdAt)
+    const withItems = await Promise.all(
+      orders.map(async (order) => {
+        const items = await ctx.db
+          .query("orderItems")
+          .withIndex("by_order", (q) => q.eq("orderId", order._id))
+          .collect()
+
+        const itemsWithProducts = await Promise.all(
+          items.map(async (item) => {
+            const product = await ctx.db.get(item.productId)
+            return { ...item, product }
+          })
+        )
+
+        return { ...order, items: itemsWithProducts }
+      })
+    )
+
+    return withItems.sort((a, b) => b.createdAt - a.createdAt)
   },
 })
 
@@ -184,5 +202,30 @@ export const getStats = query({
       totalCustomers,
       totalProducts: products.length,
     }
+  },
+})
+
+export const savePaymentRequest = internalMutation({
+  args: { orderId: v.id("orders"), checkoutRequestId: v.string() },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.orderId, { checkoutRequestId: args.checkoutRequestId })
+  },
+})
+
+export const markOrderPaidByCheckoutId = internalMutation({
+  args: { checkoutRequestId: v.string(), success: v.boolean() },
+  handler: async (ctx, args) => {
+    const order = await ctx.db
+      .query("orders")
+      .withIndex("by_checkout_request", (q) =>
+        q.eq("checkoutRequestId", args.checkoutRequestId)
+      )
+      .unique()
+
+    if (!order) return
+
+    await ctx.db.patch(order._id, {
+      status: args.success ? "paid" : "cancelled",
+    })
   },
 })

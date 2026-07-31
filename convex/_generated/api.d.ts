@@ -9,6 +9,8 @@
  */
 
 import type * as cart from "../cart.js";
+import type * as http from "../http.js";
+import type * as mpesa from "../mpesa.js";
 import type * as orders from "../orders.js";
 import type * as products from "../products.js";
 import type * as users from "../users.js";
@@ -21,6 +23,8 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   cart: typeof cart;
+  http: typeof http;
+  mpesa: typeof mpesa;
   orders: typeof orders;
   products: typeof products;
   users: typeof users;

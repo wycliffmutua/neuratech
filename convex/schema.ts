@@ -27,17 +27,19 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
 
   orders: defineTable({
-    userId: v.id("users"),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("paid"),
-      v.literal("shipped"),
-      v.literal("delivered"),
-      v.literal("cancelled")
-    ),
-    total: v.number(),
-    createdAt: v.number(),
-  }).index("by_user", ["userId"]),
+  userId: v.id("users"),
+  status: v.union(
+    v.literal("pending"),
+    v.literal("paid"),
+    v.literal("shipped"),
+    v.literal("delivered"),
+    v.literal("cancelled")
+  ),
+  total: v.number(),
+  createdAt: v.number(),
+  checkoutRequestId: v.optional(v.string()),
+}).index("by_user", ["userId"])
+  .index("by_checkout_request", ["checkoutRequestId"]),
 
   orderItems: defineTable({
     orderId: v.id("orders"),
