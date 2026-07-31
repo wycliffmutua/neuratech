@@ -63,22 +63,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   }
 
   if (step === 'success') {
-    return (
-      <div className="fixed inset-0 z-20 flex justify-end">
-        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="text-5xl mb-4">✅</div>
-          <h2 className="text-xl font-bold mb-2">Payment received!</h2>
-          <p className="text-slate-500 mb-6">Your order has been paid and confirmed.</p>
-          <button
-            onClick={onClose}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
-          >
-            Continue Shopping
-          </button>
-        </div>
-      </div>
-    )
+    return <Receipt orderId={pendingOrderId} onClose={onClose} />
   }
 
   if (step === 'failed') {
@@ -232,4 +217,78 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
+function Receipt({ orderId, onClose }: { orderId: Id<'orders'> | null; onClose: () => void }) {
+  const order = useQuery(
+    api.orders.getOrderReceipt,
+    orderId ? { orderId } : 'skip'
+  )
+
+  return (
+    <div className="fixed inset-0 z-20 flex justify-end">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col">
+        <div className="p-6 text-center border-b border-slate-100">
+          <div className="text-4xl mb-2">✅</div>
+          <h2 className="text-xl font-bold">Payment received!</h2>
+        </div>
+
+        <div id="receipt-content" className="flex-1 overflow-y-auto p-6">
+          <div className="text-center mb-6">
+            <p className="font-bold text-lg text-indigo-600">NeuraTech</p>
+            <p className="text-xs text-slate-400">Official Receipt</p>
+            {order && (
+              <p className="text-xs text-slate-400 mt-2">
+                {new Date(order.createdAt).toLocaleString('en-KE', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                })}
+              </p>
+            )}
+            {order && (
+              <p className="text-xs text-slate-400">Order ID: {order._id.slice(-8)}</p>
+            )}
+          </div>
+
+          <div className="space-y-3 mb-4 border-y border-dashed border-slate-200 py-4">
+            {order?.items.map((item) => (
+              <div key={item._id} className="flex justify-between text-sm">
+                <div>
+                  <p className="font-medium">{item.product?.name ?? 'Product'}</p>
+                  <p className="text-xs text-slate-400">
+                    {item.quantity} × KSh {item.priceAtPurchase.toLocaleString()}
+                  </p>
+                </div>
+                <p className="font-medium">
+                  KSh {(item.quantity * item.priceAtPurchase).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-between items-center">
+            <span className="font-bold">Total Paid</span>
+            <span className="font-bold text-lg text-indigo-600">
+              KSh {order?.total.toLocaleString() ?? '—'}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-slate-100 flex gap-3">
+          <button
+            onClick={() => window.print()}
+            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-lg font-medium"
+          >
+            Print Receipt
+          </button>
+          <button
+            onClick={onClose}
+            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 export default CartPanel

@@ -229,3 +229,27 @@ export const markOrderPaidByCheckoutId = internalMutation({
     })
   },
 })
+export const getOrderReceipt = query({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) return null
+
+    const order = await ctx.db.get(args.orderId)
+    if (!order) return null
+
+    const items = await ctx.db
+      .query("orderItems")
+      .withIndex("by_order", (q) => q.eq("orderId", args.orderId))
+      .collect()
+
+    const itemsWithProducts = await Promise.all(
+      items.map(async (item) => {
+        const product = await ctx.db.get(item.productId)
+        return { ...item, product }
+      })
+    )
+
+    return { ...order, items: itemsWithProducts }
+  },
+})
