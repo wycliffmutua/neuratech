@@ -1,26 +1,30 @@
-import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
-import { api } from '../convex/_generated/api'
-import type { Id } from '../convex/_generated/dataModel'
+import { useState } from "react";
+import { useQuery, useMutation } from "convex/react";
+import { useAuth, useClerk } from "@clerk/clerk-react";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 function ProductDetail({
   productId,
   onBack,
 }: {
-  productId: Id<'products'>
-  onBack: () => void
+  productId: Id<"products">;
+  onBack: () => void;
 }) {
-  const product = useQuery(api.products.getProduct, { productId })
-  const addToCart = useMutation(api.cart.addToCart)
-  const [quantity, setQuantity] = useState(1)
-  const [added, setAdded] = useState(false)
+  const product = useQuery(api.products.getProduct, { productId });
+  const addToCart = useMutation(api.cart.addToCart);
+  const createUser = useMutation(api.users.createUser);
+  const { isSignedIn } = useAuth();
+  const { openSignIn } = useClerk();
+  const [quantity, setQuantity] = useState(1);
+  const [added, setAdded] = useState(false);
 
   if (product === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-400">
         Loading...
       </div>
-    )
+    );
   }
 
   if (product === null) {
@@ -31,14 +35,19 @@ function ProductDetail({
           Back to store
         </button>
       </div>
-    )
+    );
   }
 
   const handleAddToCart = async () => {
-    await addToCart({ productId: product._id, quantity })
-    setAdded(true)
-    setTimeout(() => setAdded(false), 2000)
-  }
+    if (!isSignedIn) {
+      openSignIn();
+      return;
+    }
+    await createUser({});
+    await addToCart({ productId: product._id, quantity });
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -65,7 +74,9 @@ function ProductDetail({
             <span className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-2">
               {product.category}
             </span>
-            <h1 className="text-2xl font-bold text-slate-900 mb-3">{product.name}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 mb-3">
+              {product.name}
+            </h1>
             <p className="text-slate-500 mb-6">{product.description}</p>
 
             <p className="text-3xl font-bold text-indigo-600 mb-1">
@@ -73,22 +84,26 @@ function ProductDetail({
             </p>
             <p
               className={`text-sm mb-6 ${
-                product.stock > 0 ? 'text-green-600' : 'text-red-500'
+                product.stock > 0 ? "text-green-600" : "text-red-500"
               }`}
             >
-              {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+              {product.stock > 0 ? `${product.stock} in stock` : "Out of stock"}
             </p>
 
             {/* Specs table */}
             {product.specs && Object.keys(product.specs).length > 0 && (
               <div className="mb-6">
-                <h3 className="font-semibold text-slate-900 mb-2">Specifications</h3>
+                <h3 className="font-semibold text-slate-900 mb-2">
+                  Specifications
+                </h3>
                 <table className="w-full text-sm">
                   <tbody>
                     {Object.entries(product.specs).map(([key, value]) => (
                       <tr key={key} className="border-t border-slate-100">
                         <td className="py-2 text-slate-500">{key}</td>
-                        <td className="py-2 text-slate-900 font-medium">{value}</td>
+                        <td className="py-2 text-slate-900 font-medium">
+                          {value}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -108,7 +123,9 @@ function ProductDetail({
                   </button>
                   <span className="w-6 text-center">{quantity}</span>
                   <button
-                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                    onClick={() =>
+                      setQuantity((q) => Math.min(product.stock, q + 1))
+                    }
                     className="text-slate-500 hover:text-slate-900"
                   >
                     +
@@ -118,7 +135,11 @@ function ProductDetail({
                   onClick={handleAddToCart}
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
                 >
-                  {added ? 'Added ✓' : 'Add to Cart'}
+                  {added
+                    ? "Added to cart"
+                    : isSignedIn
+                      ? "Add to cart"
+                      : "Sign in to add"}
                 </button>
               </div>
             )}
@@ -126,7 +147,7 @@ function ProductDetail({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default ProductDetail
+export default ProductDetail;

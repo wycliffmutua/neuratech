@@ -1,5 +1,7 @@
 "use node"
 
+import process from "node:process"
+import { Buffer } from "node:buffer"
 import { action } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"

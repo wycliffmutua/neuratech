@@ -132,7 +132,13 @@ export const getAllOrders = query({
           .query("orderItems")
           .withIndex("by_order", (q) => q.eq("orderId", order._id))
           .collect()
-        return { ...order, customer, items }
+        const itemsWithProducts = await Promise.all(
+          items.map(async (item) => ({
+            ...item,
+            product: await ctx.db.get(item.productId),
+          }))
+        )
+        return { ...order, customer, items: itemsWithProducts }
       })
     )
 

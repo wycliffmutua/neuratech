@@ -71,10 +71,10 @@ function CartPanel({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-20 flex justify-end">
         <div className="absolute inset-0 bg-black/40" onClick={onClose} />
         <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="text-5xl mb-4">❌</div>
+          <div className="text-xs font-bold tracking-[0.2em] text-red-500 uppercase mb-4">Payment paused</div>
           <h2 className="text-xl font-bold mb-2">Payment not completed</h2>
           <p className="text-slate-500 mb-6">
-            The M-Pesa payment was cancelled or failed. Your order is saved — you can retry from My Orders.
+            The M Pesa payment was cancelled or failed. Your order is saved. You can retry from My Orders.
           </p>
           <button
             onClick={onClose}
@@ -92,7 +92,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-20 flex justify-end">
         <div className="absolute inset-0 bg-black/40" />
         <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="text-5xl mb-4 animate-pulse">📱</div>
+          <div className="text-xs font-bold tracking-[0.2em] text-indigo-600 uppercase mb-4 animate-pulse">M Pesa prompt sent</div>
           <h2 className="text-xl font-bold mb-2">Check your phone</h2>
           <p className="text-slate-500">
             Enter your M-Pesa PIN on the prompt sent to {phone} to complete payment of{' '}
@@ -228,7 +228,7 @@ function Receipt({ orderId, onClose }: { orderId: Id<'orders'> | null; onClose: 
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col">
         <div className="p-6 text-center border-b border-slate-100">
-          <div className="text-4xl mb-2">✅</div>
+          <div className="text-xs font-bold tracking-[0.2em] text-emerald-600 uppercase mb-2">Payment confirmed</div>
           <h2 className="text-xl font-bold">Payment received!</h2>
         </div>
 
