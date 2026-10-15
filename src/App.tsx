@@ -196,7 +196,14 @@ function App() {
       products?.filter((product) => {
         const query = search.trim().toLowerCase();
         return (
-          (activeCategory === null || product.category === activeCategory) &&
+          (activeCategory === null ||
+            product.category === activeCategory ||
+            categories.some(
+              (category) =>
+                category.name === activeCategory &&
+                (product.category === category.name ||
+                  category.subcategories.includes(product.category)),
+            )) &&
           (!query ||
             `${product.name} ${product.description} ${product.category}`
               .toLowerCase()
@@ -328,7 +335,7 @@ function App() {
           {categories.map((category) => (
             <button
               key={category.name}
-              onClick={() => selectCategory(category.subcategories[0])}
+              onClick={() => selectCategory(category.name)}
             >
               {category.name}
             </button>
@@ -404,7 +411,7 @@ function App() {
           {categories.map((category, index) => (
             <button
               key={category.name}
-              onClick={() => selectCategory(category.subcategories[0])}
+              onClick={() => selectCategory(category.name)}
             >
               <span className={`circle tone-${index + 1}`}>
                 <Icon name={categoryIcons[index]} size={25} />
@@ -421,12 +428,12 @@ function App() {
         </section>
         <section id="products" className="product-shelf">
           <div className="shelf-heading">
-            <h2>Top picks for you</h2>
+            <h2>{activeCategory ?? "Top picks for you"}</h2>
             <button onClick={() => selectCategory(null)}>
               See all products <Icon name="arrow" size={16} />
             </button>
           </div>
-          <div className="shelf-grid">
+          <div className="shelf-grid" aria-label="Products; scroll horizontally for more">
             {filteredProducts?.map((product) => (
               <article key={product._id} className="product-card">
                 <button

@@ -299,11 +299,11 @@ header {
 .hero-visual img {
   position: relative;
   z-index: 1;
-  width: min(350px, 86%);
-  height: 321px;
+  width: min(280px, 75%);
+  height: 260px;
   object-fit: contain;
   mix-blend-mode: multiply;
-  filter: drop-shadow(18px 21px 15px rgba(31, 68, 50, 0.2));
+  filter: drop-shadow(10px 14px 12px rgba(31, 68, 50, 0.15));
 }
 .sale-stamp {
   position: absolute;
@@ -411,8 +411,20 @@ header {
 }
 .shelf-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, minmax(290px, auto));
+  grid-auto-columns: calc((100% - 13px) / 2);
   gap: 13px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 2px 12px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+  scrollbar-color: #cbb8ed transparent;
+}
+.shelf-grid > .product-card {
+  min-width: 0;
+  scroll-snap-align: start;
 }
 .product-card {
   overflow: hidden;
@@ -429,12 +441,13 @@ header {
 }
 .product-photo {
   width: 100%;
-  height: 190px;
+  height: 170px;
   position: relative;
-  padding: 19px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+  padding: 16px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
   border: 0;
   background: #f1f4f3;
 }
@@ -448,18 +461,19 @@ header {
   background: #f3eef7;
 }
 .product-photo img {
-  display: block;
-  max-width: 100%;
-  max-height: 100%;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  display: block !important;
+  max-width: 100% !important;
+  max-height: 120% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
   mix-blend-mode: multiply;
 }
 .product-photo span {
   position: absolute;
   top: 9px;
   left: 9px;
+  z-index: 2;
   padding: 4px 6px;
   border-radius: 5px;
   color: #157456;
@@ -838,7 +852,8 @@ footer {
     padding: 50px 43px;
   }
   .shelf-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-auto-columns: calc((100% - 13px) / 2);
+    grid-template-rows: repeat(2, minmax(270px, auto));
   }
   .quick-categories {
     grid-template-columns: repeat(3, 1fr);
@@ -978,7 +993,8 @@ footer {
     font-size: 22px;
   }
   .shelf-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-auto-columns: calc((100% - 10px) / 2);
+    grid-template-rows: repeat(2, minmax(270px, auto));
     gap: 10px;
   }
   .product-photo {
