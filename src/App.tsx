@@ -15,7 +15,7 @@ import AdminPanel from "./AdminPanel";
 import ProductDetail from "./ProductDetail";
 import type { Id } from "../convex/_generated/dataModel";
 import MyOrders from "./MyOrders";
-
+import OrderReceipt from './OrderReceipt';
 type IconName =
   | "bag"
   | "search"
@@ -182,6 +182,7 @@ function App() {
   const [selectedProductId, setSelectedProductId] =
     useState<Id<"products"> | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const products = useQuery(api.products.listProducts);
   const cart = useQuery(api.cart.getCart);
   const addToCart = useMutation(api.cart.addToCart);
@@ -238,6 +239,7 @@ function App() {
     setActiveCategory(subcategory);
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
   };
+  
   if (adminOpen) return <AdminPanel onClose={() => setAdminOpen(false)} />;
   if (selectedProductId)
     return (
@@ -247,7 +249,7 @@ function App() {
       />
     );
   if (ordersOpen) return <MyOrders onClose={() => setOrdersOpen(false)} />;
-
+if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
   return (
     <div className="shop-page">
       <div className="utility-bar">
