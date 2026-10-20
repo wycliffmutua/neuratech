@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { useAuth, useClerk } from "@clerk/clerk-react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { imageUrl } from "./imageUrl";
 
 function ProductDetail({
   productId,
@@ -63,7 +64,7 @@ function ProductDetail({
           {/* Image */}
           <div className="aspect-square bg-slate-100 rounded-xl overflow-hidden">
             <img
-              src={product.images[0]}
+              src={imageUrl(product.images[0])}
               alt={product.name}
               className="w-full h-full object-contain p-6"
             />
