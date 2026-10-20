@@ -1,4 +1,3 @@
-import React from 'react';
 import { CheckCircle, Download, Eye, MapPin, CreditCard, Calendar, Hash } from 'lucide-react';
 
 export default function OrderReceipt({ onClose }: { onClose?: () => void }) {
