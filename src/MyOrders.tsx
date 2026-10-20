@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
+import { imageUrl } from './imageUrl'
 
 const statusStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -78,7 +79,7 @@ function MyOrders({ onClose }: { onClose: () => void }) {
                     {order.items?.map((item) => (
                       <div key={item._id} className="flex items-center gap-3">
                         <img
-                          src={item.product?.images[0]}
+                          src={imageUrl(item.product?.images[0])}
                           alt={item.product?.name}
                           className="w-12 h-12 object-contain bg-slate-100 rounded-lg p-1"
                         />

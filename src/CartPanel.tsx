@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
+import { imageUrl } from './imageUrl'
 
 function CartPanel({ onClose }: { onClose: () => void }) {
   const cart = useQuery(api.cart.getCart)
@@ -158,7 +159,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
           {cart?.map((item) => (
             <div key={item._id} className="flex gap-4 items-center">
               <img
-                src={item.product?.images[0]}
+                src={imageUrl(item.product?.images[0])}
                 alt={item.product?.name}
                 className="w-16 h-16 object-contain bg-slate-100 rounded-lg p-1"
               />

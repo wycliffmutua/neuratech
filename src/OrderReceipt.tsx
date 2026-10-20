@@ -1,4 +1,5 @@
 import { CheckCircle, Download, Eye, MapPin, CreditCard, Calendar, Hash } from 'lucide-react';
+import { imageUrl } from './imageUrl';
 
 export default function OrderReceipt({ onClose }: { onClose?: () => void }) {
   return (
@@ -86,7 +87,7 @@ export default function OrderReceipt({ onClose }: { onClose?: () => void }) {
             <div className="py-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center p-1 shrink-0 border border-slate-200">
-                  <img src="/images/HP-ProBook-640-G5.jpg" alt="HP ProBook" className="max-h-full object-contain" />
+                  <img src={imageUrl('/images/HP ProBook 640 G5G4.jpg')} alt="HP ProBook" className="max-h-full object-contain" />
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">HP ProBook 640 G5/G4</h4>
@@ -100,7 +101,7 @@ export default function OrderReceipt({ onClose }: { onClose?: () => void }) {
             <div className="py-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center p-1 shrink-0 border border-slate-200">
-                  <img src="/images/headphones.jpg" alt="Headphones" className="max-h-full object-contain" />
+                  <img src={imageUrl('/images/Bluedee BH200 Premium Active Noise Cancelling Wireless Headphones.jpg')} alt="Headphones" className="max-h-full object-contain" />
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-800">Wireless Bluetooth Headphones</h4>

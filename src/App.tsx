@@ -16,6 +16,7 @@ import ProductDetail from "./ProductDetail";
 import type { Id } from "../convex/_generated/dataModel";
 import MyOrders from "./MyOrders";
 import OrderReceipt from './OrderReceipt';
+import { imageUrl } from './imageUrl';
 type IconName =
   | "bag"
   | "search"
@@ -398,7 +399,7 @@ if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
           </div>
           <div className="hero-visual">
             {featuredProduct?.images[0] ? (
-              <img src={featuredProduct.images[0]} alt="Featured product" />
+              <img src={imageUrl(featuredProduct.images[0])} alt="Featured product" />
             ) : (
               <Icon name="laptop" size={130} />
             )}
@@ -442,7 +443,7 @@ if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
                   className="product-photo"
                   onClick={() => setSelectedProductId(product._id)}
                 >
-                  <img src={product.images[0]} alt={product.name} />
+                  <img src={imageUrl(product.images[0])} alt={product.name} />
                   {product.stock > 0 && <span>Available</span>}
                 </button>
                 <div className="product-details">
@@ -493,7 +494,7 @@ if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
               </button>
             </div>
             {featuredProduct?.images[0] && (
-              <img src={featuredProduct.images[0]} alt="Computing collection" />
+                <img src={imageUrl(featuredProduct.images[0])} alt="Computing collection" />
             )}
           </article>
           <article className="promo-card promo-two">
