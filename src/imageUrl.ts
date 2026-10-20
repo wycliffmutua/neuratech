@@ -4,5 +4,7 @@ export function imageUrl(path?: string) {
   if (/^(https?:|data:|blob:)/i.test(path)) return path
 
   const base = import.meta.env.BASE_URL
-  return `${base}${path.replace(/^\/+/, '')}`
+  const localPath = path.replace(/^\/+/, '')
+  const assetPath = localPath.includes('/') ? localPath : `images/${localPath}`
+  return `${base}${assetPath}`
 }
