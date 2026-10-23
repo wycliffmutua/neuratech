@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { ShieldCheck, Download, ArrowLeft, MapPin, Truck, Hash, Calendar, Mail, CreditCard, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Download, ArrowLeft, MapPin, Truck, Hash, Calendar, CreditCard, CheckCircle2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { imageUrl } from './imageUrl';
 
@@ -29,9 +28,6 @@ interface OrderReceiptProps {
 }
 
 export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) {
-  const [emailSent, setEmailSent] = useState(true);
-
-  // Fallback mock order if accessed directly
   const order = orderData || {
     orderId: '#NT-84920F',
     paymentMethod: 'CARD',
@@ -56,18 +52,13 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
     ]
   };
 
-  // Custom PDF Download with creative product-based filename
   const handleDownloadPDF = () => {
     const primaryItemName = order.items[0]?.name.replace(/[^a-zA-Z0-9]/g, '_') || 'NeuraTech_Order';
     const customFileName = `${primaryItemName}_Receipt`;
     
-    // Temporarily set document title so browser print-to-PDF uses this filename
     const originalTitle = document.title;
     document.title = customFileName;
-    
     window.print();
-    
-    // Restore original title after print dialog closes
     setTimeout(() => {
       document.title = originalTitle;
     }, 1000);
@@ -76,40 +67,38 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
   return (
     <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8 font-sans">
       
-      {/* STRICT PRINT STYLES: Forces single-page layout & hides buttons */}
+      {/* FOOLPROOF SINGLE-PAGE PRINT HACK: Hides entire app body except #printable-receipt */}
       <style>{`
         @media print {
           @page {
             size: portrait;
-            margin: 5mm;
+            margin: 10mm;
           }
-          body {
-            background-color: white !important;
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-receipt, #printable-receipt * {
+            visibility: visible !important;
+          }
+          #printable-receipt {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
-            -webkit-print-color-adjust: exact;
-          }
-          button, .print-hidden {
-            display: none !important;
-          }
-          .max-w-3xl {
-            max-width: 100% !important;
             box-shadow: none !important;
             border: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
-          .min-h-screen {
-            min-height: auto !important;
-            padding: 0 !important;
-            background: white !important;
+          .print-hidden {
+            display: none !important;
           }
         }
       `}</style>
 
-      <div className="max-w-3xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+      {/* Printable Receipt Container ID */}
+      <div id="printable-receipt" className="max-w-3xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
         
-        {/* Header Branding */}
         <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 px-8 py-6 text-white text-center">
           <div className="flex justify-center items-center gap-2 mb-2">
             <span className="text-2xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-emerald-400">
@@ -127,7 +116,6 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </p>
         </div>
 
-        {/* Action Bar (Hidden on Print) */}
         <div className="bg-slate-900 px-6 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 print-hidden">
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <span>Status:</span> 
@@ -155,7 +143,6 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </div>
         </div>
 
-        {/* Metadata Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-5 bg-slate-50 border-b border-slate-200 text-xs">
           <div>
             <span className="text-slate-400 block mb-0.5 font-semibold tracking-wider">ORDER ID</span>
@@ -183,7 +170,6 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </div>
         </div>
 
-        {/* Shipping Address */}
         <div className="px-6 py-3 border-b border-slate-200 flex items-start justify-between bg-white text-xs">
           <div className="flex items-start gap-2.5">
             <MapPin className="w-4 h-4 text-purple-600 mt-0.5 shrink-0" />
@@ -198,7 +184,6 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </div>
         </div>
 
-        {/* Product Items List */}
         <div className="px-6 py-4">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ordered Items</h3>
           
@@ -220,9 +205,7 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </div>
         </div>
 
-        {/* Totals & QR Code Section */}
         <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          
           <div className="flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="p-1 bg-white rounded-lg border border-slate-100 shrink-0">
               <QRCodeSVG 
@@ -261,7 +244,6 @@ export default function OrderReceipt({ onClose, orderData }: OrderReceiptProps) 
           </div>
         </div>
 
-        {/* Footer Email Status & Support */}
         <div className="bg-white px-6 py-3 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="flex items-center gap-1 text-emerald-700 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> Digital receipt successfully emailed to {order.customerEmail}
