@@ -331,6 +331,21 @@ export const confirmSimulatedPayment = mutation({
   },
 })
 
+export const resendMyReceipt = mutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", q => q.eq("clerkId", identity.subject)).unique()
+    const order = await ctx.db.get(args.orderId)
+    if (!user || !order || order.userId !== user._id) throw new Error("Order not found")
+    if (order.status !== "paid") throw new Error("A receipt is available after payment is confirmed")
+    if (!order.customerEmail) throw new Error("This order has no receipt email address")
+    await ctx.scheduler.runAfter(0, internal.orders.sendReceiptEmail, { orderId: order._id })
+    return null
+  },
+})
+
 export const getOrderReceipt = query({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {

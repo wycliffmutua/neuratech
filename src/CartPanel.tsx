@@ -4,6 +4,7 @@ import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
 import { imageUrl } from './imageUrl'
 import { calculateShippingQuote } from './utils/shipping'
+import { findDeliveryLocations } from './utils/locations'
 import { QRCodeSVG } from 'qrcode.react'
 import { MapPin, CreditCard, Smartphone, Globe, Coins, ShieldCheck, Download, ArrowLeft, Mail, Truck, Hash, Calendar } from 'lucide-react'
 
@@ -20,6 +21,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   
   // Shipping & Location states
   const [locationName, setLocationName] = useState('Nairobi CBD')
+  const [locationSearch, setLocationSearch] = useState('Nairobi CBD')
   const [distanceKm, setDistanceKm] = useState(5)
   const [customerEmail, setCustomerEmail] = useState('wycliff@neuratech.co.ke')
 
@@ -58,12 +60,6 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   const handleProceedToShipping = () => {
     setError(null)
     setStep('shipping')
-  }
-
-  const handleProceedToPayment = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setStep('payment')
   }
 
   const handleExecutePayment = async () => {
@@ -172,7 +168,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
             Free shipping in Nairobi on orders over KSh 10,000. Distances over 50 km deliver in 1-2 business days.
           </p>
 
-          <form onSubmit={handleProceedToPayment} className="space-y-4 text-xs">
+          <form onSubmit={(event) => { event.preventDefault(); setLocationSearch(locationName); setStep('payment') }} className="space-y-4 text-xs">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Email for Receipt & Tracking</label>
               <input 
@@ -184,24 +180,36 @@ function CartPanel({ onClose }: { onClose: () => void }) {
               />
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Search / Select Location (Google Maps Connected)</label>
+            <div className="relative">
+              <label className="block font-semibold text-slate-700 mb-1">Search / Select Delivery Location</label>
               <input 
                 type="text" 
                 required
-                value={locationName}
+                value={locationSearch}
                 onChange={(e) => {
                   const val = e.target.value
+                  setLocationSearch(val)
                   setLocationName(val)
-                  if (val.toLowerCase().includes('nairobi') || val.toLowerCase().includes('cbd')) setDistanceKm(5)
-                  else if (val.toLowerCase().includes('westlands')) setDistanceKm(8)
-                  else if (val.toLowerCase().includes('juja')) setDistanceKm(35)
-                  else if (val.toLowerCase().includes('mombasa')) setDistanceKm(480)
+                  const match = findDeliveryLocations(val)[0]
+                  if (match) setDistanceKm(match.distance)
+                  else if (val.toLowerCase().includes('nairobi') || val.toLowerCase().includes('cbd')) setDistanceKm(5)
                   else setDistanceKm(18)
                 }}
-                placeholder="e.g. Westlands, Juja, Karen..."
+                placeholder="Search Nairobi, Juja, Westlands..."
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600"
               />
+              {findDeliveryLocations(locationSearch).length > 0 && locationSearch !== locationName && (
+                <ul className="absolute z-30 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto mt-1">
+                  {findDeliveryLocations(locationSearch).map((place) => (
+                    <li key={place.name}>
+                      <button type="button" onClick={() => { setLocationName(place.name); setLocationSearch(place.name); setDistanceKm(place.distance) }} className="w-full px-3 py-2.5 hover:bg-purple-50 text-left flex justify-between items-center text-slate-700 border-b border-slate-100 last:border-none">
+                        <span className="font-medium text-slate-800">{place.name}</span>
+                        <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-semibold">{place.distance} km away</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
