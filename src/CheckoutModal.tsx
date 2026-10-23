@@ -12,6 +12,8 @@ import {
   Coins,
   Mail
 } from 'lucide-react';
+import { useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { calculateShippingQuote } from './utils/shipping';
 
 interface CheckoutModalProps {
@@ -21,7 +23,6 @@ interface CheckoutModalProps {
   onCompleteOrder: (orderData: any) => void;
 }
 
-// Preset locations with accurate distances from Nairobi Hub
 const KENYAN_LOCATIONS = [
   { name: 'Nairobi CBD', distance: 2 },
   { name: 'Westlands, Nairobi', distance: 7 },
@@ -38,30 +39,24 @@ const KENYAN_LOCATIONS = [
 ];
 
 export default function CheckoutModal({ cartItems, subtotal, onClose, onCompleteOrder }: CheckoutModalProps) {
-  // Navigation Steps: 'shipping' | 'payment' | 'review'
   const [step, setStep] = useState<'shipping' | 'payment' | 'review'>('shipping');
-
-  // Shipping & Location State
   const [locationName, setLocationName] = useState('Nairobi CBD');
-  const [distanceKm, setDistanceKm] = useState(5);
+  const [distanceKm, setDistanceKm] = useState(2);
   const [customerEmail, setCustomerEmail] = useState('wycliffemutua8463@gmail.com');
   
-  // Autocomplete suggestions state
   const [query, setQuery] = useState('Nairobi CBD');
   const [suggestions, setSuggestions] = useState<typeof KENYAN_LOCATIONS>([]);
 
-  // Payment Method State
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mpesa' | 'paypal' | 'crypto'>('card');
   const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
   const [mpesaPhone, setMpesaPhone] = useState('254712345678');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Dynamic Shipping Rate Calculation
+  const saveOrderMutation = useMutation(api.orders.createOrder);
   const shippingQuote = calculateShippingQuote(locationName, distanceKm, subtotal);
   const total = subtotal + shippingQuote.fee;
 
-  // Handle live typing for location autocomplete
   const handleLocationInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setQuery(val);
@@ -77,7 +72,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     }
   };
 
-  // Handle selecting a location from the dropdown
   const handleSelectLocation = (loc: { name: string; distance: number }) => {
     setQuery(loc.name);
     setLocationName(loc.name);
@@ -91,7 +85,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     setStep('payment');
   };
 
-  const handleExecutePayment = (e: React.FormEvent) => {
+  const handleExecutePayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -103,39 +97,58 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     setIsProcessing(true);
     setStep('review');
 
-    // Simulate verification delay (gateway / STK push confirmation)
-    setTimeout(() => {
-      setIsProcessing(false);
-      const finalOrder = {
-        orderId: `#NT-${Math.floor(100000 + Math.random() * 900000)}`,
+    try {
+      const generatedOrderId = `#NT-${Math.floor(100000 + Math.random() * 900000)}`;
+      const formattedItems = cartItems.map((item, idx) => ({
+        id: item._id || String(idx),
+        name: item.product.name,
+        specs: 'Standard Edition / Quality Checked',
+        qty: item.quantity,
+        price: item.product.price,
+        image: item.product.images?.[0] || '/images/laptop.jpg',
+      }));
+
+      // Save to Convex backend & trigger email dispatch log
+      await saveOrderMutation({
+        orderId: generatedOrderId,
+        customerEmail,
         paymentMethod: paymentMethod.toUpperCase(),
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        estDelivery: shippingQuote.estDelivery,
         shippingAddress: locationName,
         distanceKm: shippingQuote.distanceKm,
         subtotal,
         shippingFee: shippingQuote.fee,
         total,
-        customerEmail,
-        status: 'Paid' as const,
-        items: cartItems.map((item, idx) => ({
-          id: item._id || String(idx),
-          name: item.product.name,
-          specs: 'Standard Edition / Quality Checked',
-          qty: item.quantity,
-          price: item.product.price,
-          image: item.product.images?.[0] || '/images/laptop.jpg',
-        })),
-      };
-      onCompleteOrder(finalOrder);
-    }, 2800);
+        items: formattedItems,
+      });
+
+      setTimeout(() => {
+        setIsProcessing(false);
+        onCompleteOrder({
+          orderId: generatedOrderId,
+          paymentMethod: paymentMethod.toUpperCase(),
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          estDelivery: shippingQuote.estDelivery,
+          shippingAddress: locationName,
+          distanceKm: shippingQuote.distanceKm,
+          subtotal,
+          shippingFee: shippingQuote.fee,
+          total,
+          customerEmail,
+          status: 'Paid' as const,
+          items: formattedItems,
+        });
+      }, 2000);
+    } catch (err) {
+      setIsProcessing(false);
+      setError('Order placement failed. Please try again.');
+      setStep('payment');
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm overflow-y-auto py-8 px-4 flex items-center justify-center font-sans">
       <div className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
         
-        {/* Step Progress Header */}
         <div className="bg-slate-900 px-6 py-4 text-white flex items-center justify-between border-b border-slate-800">
           <span className="text-sm font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-emerald-400">
             NeuraTech Checkout
@@ -149,7 +162,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           </div>
         </div>
 
-        {/* STEP 1: SHIPPING LOCATION WITH AUTOCOMPLETE */}
         {step === 'shipping' && (
           <form onSubmit={handleProceedToPayment} className="p-6 sm:p-8 space-y-6">
             <div>
@@ -175,7 +187,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                 />
               </div>
 
-              {/* Location Autocomplete Input */}
               <div className="relative">
                 <label className="block font-semibold text-slate-700 mb-1">Search Delivery Location (Type "Juja", "Westlands"...)</label>
                 <input 
@@ -187,7 +198,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 bg-white"
                 />
 
-                {/* Suggestion Dropdown List */}
                 {suggestions.length > 0 && (
                   <ul className="absolute z-30 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto mt-1">
                     {suggestions.map((item, idx) => (
@@ -242,7 +252,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           </form>
         )}
 
-        {/* STEP 2: PAYMENT METHOD SELECTION */}
         {step === 'payment' && (
           <form onSubmit={handleExecutePayment} className="p-6 sm:p-8 space-y-6">
             <div>
@@ -334,7 +343,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           </form>
         )}
 
-        {/* STEP 3: UNDER REVIEW / VERIFICATION */}
         {step === 'review' && (
           <div className="p-12 text-center space-y-6">
             {isProcessing ? (
@@ -343,8 +351,8 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                   <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Order Under Review</h2>
-                  <p className="text-xs text-slate-500 mt-1">Verifying transaction authorization with payment network...</p>
+                  <h2 className="text-xl font-bold text-slate-900">Processing & Dispatched to Email</h2>
+                  <p className="text-xs text-slate-500 mt-1">Saving order and transmitting digital receipt...</p>
                 </div>
               </>
             ) : (
