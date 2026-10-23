@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import { imageUrl } from './imageUrl'
 
@@ -13,7 +13,23 @@ const statusStyles: Record<string, string> = {
 
 function MyOrders({ onClose }: { onClose: () => void }) {
   const orders = useQuery(api.orders.getMyOrders)
+  const resendReceipt = useMutation(api.orders.resendMyReceipt)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [receiptMessage, setReceiptMessage] = useState<{ orderId: string; text: string; error?: boolean } | null>(null)
+  const [resendingId, setResendingId] = useState<string | null>(null)
+
+  const handleResendReceipt = async (orderId: string) => {
+    setResendingId(orderId)
+    setReceiptMessage(null)
+    try {
+      await resendReceipt({ orderId: orderId as import('../convex/_generated/dataModel').Id<'orders'> })
+      setReceiptMessage({ orderId, text: 'Receipt email queued for delivery.' })
+    } catch (error) {
+      setReceiptMessage({ orderId, text: error instanceof Error ? error.message : 'Could not resend receipt.', error: true })
+    } finally {
+      setResendingId(null)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-30 bg-slate-50 overflow-y-auto">
@@ -71,6 +87,21 @@ function MyOrders({ onClose }: { onClose: () => void }) {
 
                 {isExpanded && (
                   <div className="border-t border-slate-100 p-5 space-y-3">
+                    {order.status === 'paid' && (
+                      <div className="flex flex-wrap items-center gap-3 pb-2">
+                        <button
+                          type="button"
+                          disabled={resendingId === order._id}
+                          onClick={() => void handleResendReceipt(order._id)}
+                          className="rounded-lg bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                          {resendingId === order._id ? 'Sending…' : 'Resend receipt email'}
+                        </button>
+                        {receiptMessage?.orderId === order._id && (
+                          <span className={`text-sm ${receiptMessage.error ? 'text-red-600' : 'text-emerald-700'}`} role="status">{receiptMessage.text}</span>
+                        )}
+                      </div>
+                    )}
                     {(!order.items || order.items.length === 0) && (
                       <p className="text-sm text-slate-400">
                         No item details available for this order.

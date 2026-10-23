@@ -15,6 +15,7 @@ import {
 import { useMutation } from 'convex/react';
 import { api } from '../convex/_generated/api';
 import { calculateShippingQuote } from './utils/shipping';
+import { DELIVERY_LOCATIONS, findDeliveryLocations } from './utils/locations';
 
 interface CheckoutModalProps {
   cartItems: Array<{ _id: string; product: { name: string; price: number; images?: string[] }; quantity: number }>;
@@ -23,21 +24,6 @@ interface CheckoutModalProps {
   onCompleteOrder: (orderData: any) => void;
 }
 
-const KENYAN_LOCATIONS = [
-  { name: 'Nairobi CBD', distance: 2 },
-  { name: 'Westlands, Nairobi', distance: 7 },
-  { name: 'Kilimani, Nairobi', distance: 6 },
-  { name: 'Karen, Nairobi', distance: 18 },
-  { name: 'Juja Town, Kiambu', distance: 35 },
-  { name: 'Juja Stage, Kiambu', distance: 36 },
-  { name: 'Thika Town, Kiambu', distance: 42 },
-  { name: 'Ruiru, Kiambu', distance: 22 },
-  { name: 'Kiambu Town', distance: 16 },
-  { name: 'Nakuru Town', distance: 160 },
-  { name: 'Mombasa CBD', distance: 480 },
-  { name: 'Eldoret Town', distance: 310 },
-];
-
 export default function CheckoutModal({ cartItems, subtotal, onClose, onCompleteOrder }: CheckoutModalProps) {
   const [step, setStep] = useState<'shipping' | 'payment' | 'review'>('shipping');
   const [locationName, setLocationName] = useState('Nairobi CBD');
@@ -45,7 +31,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
   const [customerEmail, setCustomerEmail] = useState('wycliffemutua8463@gmail.com');
   
   const [query, setQuery] = useState('Nairobi CBD');
-  const [suggestions, setSuggestions] = useState<typeof KENYAN_LOCATIONS>([]);
+  const [suggestions, setSuggestions] = useState<typeof DELIVERY_LOCATIONS>([]);
 
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mpesa' | 'paypal' | 'crypto'>('card');
   const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242');
@@ -64,9 +50,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     setLocationName(val);
 
     if (val.trim().length > 0) {
-      const filtered = KENYAN_LOCATIONS.filter((loc) =>
-        loc.name.toLowerCase().includes(val.toLowerCase())
-      );
+      const filtered = findDeliveryLocations(val);
       setSuggestions(filtered);
     } else {
       setSuggestions([]);
