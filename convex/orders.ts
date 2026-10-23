@@ -1,5 +1,7 @@
-import { mutation, query, internalMutation } from "./_generated/server"
+import { mutation, query, action, internalMutation } from "./_generated/server"
 import { v } from "convex/values"
+import { internal } from "./_generated/api"
+import { Resend } from "resend"
 
 export const createOrder = mutation({
   args: {},
@@ -64,7 +66,64 @@ export const createOrder = mutation({
       await ctx.db.delete(item._id)
     }
 
+    // Schedule automatic email dispatch to customer
+    const customerEmail = identity.email || user.email
+    if (customerEmail) {
+      const itemsList = itemsWithProducts
+        .map((i) => `${i.quantity}x ${i.product.name}`)
+        .join(", ")
+
+      await ctx.scheduler.runAfter(0, internal.orders.sendReceiptEmail, {
+        customerEmail,
+        orderId: String(orderId),
+        total,
+        itemsSummary: itemsList,
+      })
+    }
+
     return orderId
+  },
+})
+
+// Internal action to call Resend API
+export const sendReceiptEmail = action({
+  args: {
+    customerEmail: v.string(),
+    orderId: v.string(),
+    total: v.number(),
+    itemsSummary: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const resend = new Resend(process.env.RESEND_API_KEY)
+
+    try {
+      await resend.emails.send({
+        from: "NeuraTech <onboarding@resend.dev>", // Replace with your domain once verified
+        to: args.customerEmail,
+        subject: `Your NeuraTech Order Receipt [${args.orderId}]`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <div style="background-color: #0f172a; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="color: #a855f7; margin: 0; font-size: 24px;">NeuraTech.</h1>
+              <p style="color: #94a3b8; font-size: 14px; margin-top: 5px;">Official Purchase Confirmation</p>
+            </div>
+            <div style="padding: 20px; color: #334155;">
+              <h2>Thank you for your purchase!</h2>
+              <p>Your payment has been successfully confirmed and processed.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p><strong>Order ID:</strong> ${args.orderId}</p>
+              <p><strong>Items:</strong> ${args.itemsSummary}</p>
+              <p><strong>Total Paid:</strong> KSh ${args.total.toLocaleString()}</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">If you have any questions, reach out to support@neuratech.co.ke.</p>
+            </div>
+          </div>
+        `,
+      })
+      console.log(`[Email Dispatch Success] Sent receipt to ${args.customerEmail}`)
+    } catch (err) {
+      console.error("[Email Dispatch Failure]", err)
+    }
   },
 })
 

@@ -1,14 +1,14 @@
-import { defineSchema, defineTable } from "convex/server"
-import { v } from "convex/values"
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
 export default defineSchema({
   users: defineTable({
-  clerkId: v.string(),
-  email: v.string(),
-  name: v.string(),
-  imageUrl: v.optional(v.string()),
-  role: v.optional(v.string()), // "admin" or undefined for regular users
-}).index("by_clerk_id", ["clerkId"]),
+    clerkId: v.string(),
+    email: v.string(),
+    name: v.string(),
+    imageUrl: v.optional(v.string()),
+    role: v.optional(v.string()),
+  }).index("by_clerk_id", ["clerkId"]),
 
   products: defineTable({
     name: v.string(),
@@ -27,19 +27,26 @@ export default defineSchema({
   }).index("by_user", ["userId"]),
 
   orders: defineTable({
-  userId: v.id("users"),
-  status: v.union(
-    v.literal("pending"),
-    v.literal("paid"),
-    v.literal("shipped"),
-    v.literal("delivered"),
-    v.literal("cancelled")
-  ),
-  total: v.number(),
-  createdAt: v.number(),
-  checkoutRequestId: v.optional(v.string()),
-}).index("by_user", ["userId"])
-  .index("by_checkout_request", ["checkoutRequestId"]),
+    userId: v.id("users"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("paid"),
+      v.literal("shipped"),
+      v.literal("delivered"),
+      v.literal("cancelled")
+    ),
+    subtotal: v.number(),
+    shippingFee: v.number(),
+    total: v.number(),
+    shippingAddress: v.string(),
+    distanceKm: v.number(),
+    customerEmail: v.string(),
+    paymentMethod: v.string(),
+    checkoutRequestId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_checkout_request", ["checkoutRequestId"]),
 
   orderItems: defineTable({
     orderId: v.id("orders"),
@@ -47,4 +54,4 @@ export default defineSchema({
     quantity: v.number(),
     priceAtPurchase: v.number(),
   }).index("by_order", ["orderId"]),
-})
+});
