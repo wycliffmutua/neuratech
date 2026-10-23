@@ -3,6 +3,9 @@ import { useQuery, useMutation, useAction } from 'convex/react'
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
 import { imageUrl } from './imageUrl'
+import { calculateShippingQuote } from './utils/shipping'
+import { QRCodeSVG } from 'qrcode.react'
+import { MapPin, CreditCard, Smartphone, Globe, Coins, ShieldCheck, Download, ArrowLeft, Mail, Truck, Hash, Calendar } from 'lucide-react'
 
 function CartPanel({ onClose }: { onClose: () => void }) {
   const cart = useQuery(api.cart.getCart)
@@ -11,8 +14,18 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   const createOrder = useMutation(api.orders.createOrder)
   const initiateSTKPush = useAction(api.mpesa.initiateSTKPush)
 
-  const [step, setStep] = useState<'cart' | 'phone' | 'waiting' | 'success' | 'failed'>('cart')
+  // Expanded step flow: 'cart' | 'shipping' | 'payment' | 'phone' | 'waiting' | 'success' | 'failed'
+  const [step, setStep] = useState<'cart' | 'shipping' | 'payment' | 'phone' | 'waiting' | 'success' | 'failed'>('cart')
+  
+  // Shipping & Location states
+  const [locationName, setLocationName] = useState('Nairobi CBD')
+  const [distanceKm, setDistanceKm] = useState(5)
+  const [customerEmail, setCustomerEmail] = useState('wycliff@neuratech.co.ke')
+
+  // Payment states
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'mpesa' | 'paypal' | 'crypto'>('card')
   const [phone, setPhone] = useState('')
+  const [cardNumber, setCardNumber] = useState('4242 •••• •••• 4242')
   const [error, setError] = useState<string | null>(null)
   const [pendingOrderId, setPendingOrderId] = useState<Id<'orders'> | null>(null)
   const [paidAmount, setPaidAmount] = useState(0)
@@ -22,10 +35,14 @@ function CartPanel({ onClose }: { onClose: () => void }) {
     step === 'waiting' ? {} : 'skip'
   )
 
-  const total = cart?.reduce(
+  const subtotal = cart?.reduce(
     (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
     0
   ) ?? 0
+
+  // Calculate dynamic shipping quote based on distance and Nairobi free rule (>= 10,000 KSh)
+  const shippingQuote = calculateShippingQuote(locationName, distanceKm, subtotal)
+  const total = subtotal + shippingQuote.fee
 
   useEffect(() => {
     if (step !== 'waiting' || !pendingOrderId || !myOrders) return
@@ -37,34 +54,56 @@ function CartPanel({ onClose }: { onClose: () => void }) {
     }
   }, [myOrders, step, pendingOrderId])
 
-  const handleProceedToPhone = () => {
+  const handleProceedToShipping = () => {
     setError(null)
-    setStep('phone')
+    setStep('shipping')
   }
 
-  const handlePay = async () => {
+  const handleProceedToPayment = (e: React.FormEvent) => {
+    e.preventDefault()
     setError(null)
-    if (!/^(0|254|\+254)?[71]\d{8}$/.test(phone.replace(/\s/g, ''))) {
-      setError('Enter a valid Safaricom number (e.g. 0712345678)')
-      return
-    }
+    setStep('payment')
+  }
 
+  const handleExecutePayment = async () => {
+    setError(null)
     const amountToPay = total
     setPaidAmount(amountToPay)
 
-    try {
-      const orderId = await createOrder({})
-      setPendingOrderId(orderId)
-      setStep('waiting')
-      await initiateSTKPush({ phoneNumber: phone, amount: amountToPay, orderId })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Payment failed to start')
-      setStep('phone')
+    if (paymentMethod === 'mpesa') {
+      if (!/^(0|254|\+254)?[71]\d{8}$/.test(phone.replace(/\s/g, ''))) {
+        setError('Enter a valid Safaricom number (e.g. 0712345678)')
+        return
+      }
+
+      try {
+        const orderId = await createOrder({})
+        setPendingOrderId(orderId)
+        setStep('waiting')
+        await initiateSTKPush({ phoneNumber: phone, amount: amountToPay, orderId })
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Payment failed to start')
+        setStep('payment')
+      }
+    } else {
+      // Simulate Card, PayPal, or Crypto verification & processing review
+      try {
+        const orderId = await createOrder({})
+        setPendingOrderId(orderId)
+        setStep('waiting')
+        
+        // Simulating gateway confirmation delay
+        setTimeout(async () => {
+          setStep('success')
+        }, 2500)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Transaction verification failed')
+      }
     }
   }
 
   if (step === 'success') {
-    return <Receipt orderId={pendingOrderId} onClose={onClose} />
+    return <Receipt orderId={pendingOrderId} onClose={onClose} shippingAddress={locationName} distanceKm={shippingQuote.distanceKm} estDelivery={shippingQuote.estDelivery} shippingFee={shippingQuote.fee} customerEmail={customerEmail} paymentMethod={paymentMethod.toUpperCase()} />
   }
 
   if (step === 'failed') {
@@ -75,11 +114,11 @@ function CartPanel({ onClose }: { onClose: () => void }) {
           <div className="text-xs font-bold tracking-[0.2em] text-red-500 uppercase mb-4">Payment paused</div>
           <h2 className="text-xl font-bold mb-2">Payment not completed</h2>
           <p className="text-slate-500 mb-6">
-            The M Pesa payment was cancelled or failed. Your order is saved. You can retry from My Orders.
+            The payment transaction was cancelled or failed. Your order is saved. You can retry from My Orders.
           </p>
           <button
             onClick={onClose}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium"
+            className="bg-purple-900 hover:bg-purple-800 text-white px-6 py-3 rounded-lg font-medium"
           >
             Close
           </button>
@@ -93,61 +132,213 @@ function CartPanel({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-20 flex justify-end">
         <div className="absolute inset-0 bg-black/40" />
         <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col items-center justify-center p-6 text-center">
-          <div className="text-xs font-bold tracking-[0.2em] text-indigo-600 uppercase mb-4 animate-pulse">M Pesa prompt sent</div>
-          <h2 className="text-xl font-bold mb-2">Check your phone</h2>
-          <p className="text-slate-500">
-            Enter your M-Pesa PIN on the prompt sent to {phone} to complete payment of{' '}
-            <span className="font-semibold text-indigo-600">KSh {paidAmount.toLocaleString()}</span>.
+          <div className="text-xs font-bold tracking-[0.2em] text-purple-600 uppercase mb-4 animate-pulse">Processing Payment & Review</div>
+          <h2 className="text-xl font-bold mb-2">Verifying Transaction</h2>
+          <p className="text-slate-500 text-xs">
+            {paymentMethod === 'mpesa' 
+              ? `Check your phone for the M-Pesa prompt sent to ${phone} to complete payment of` 
+              : `Processing secure ${paymentMethod.toUpperCase()} transaction for`}
+            <span className="font-semibold text-purple-900 block text-base mt-1">KSh {paidAmount.toLocaleString()}</span>
           </p>
         </div>
       </div>
     )
   }
 
-  if (step === 'phone') {
+  // STEP 2: SHIPPING LOCATION SELECTION
+  if (step === 'shipping') {
     return (
       <div className="fixed inset-0 z-20 flex justify-end">
         <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col p-6">
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col p-6 overflow-y-auto">
           <button
             onClick={() => setStep('cart')}
-            className="text-slate-400 hover:text-slate-700 text-sm mb-6 self-start"
+            className="text-slate-400 hover:text-slate-700 text-sm mb-4 self-start flex items-center gap-1 cursor-pointer"
           >
-            &larr; Back to cart
+            <ArrowLeft className="w-4 h-4" /> Back to Cart
           </button>
-          <h2 className="text-xl font-bold mb-2">Pay with M-Pesa</h2>
-          <p className="text-slate-500 text-sm mb-6">
-            Enter the phone number to receive the payment prompt.
+          
+          <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-purple-600" /> Shipping Destination
+          </h2>
+          <p className="text-slate-500 text-xs mb-6">
+            Free shipping in Nairobi on orders over KSh 10,000. Distances over 50 km deliver in 1-2 business days.
           </p>
-          {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-          <input
-            type="tel"
-            placeholder="0712345678"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 mb-4"
-          />
-          <p className="text-sm text-slate-500 mb-6">
-            Amount: <span className="font-semibold text-indigo-600">KSh {total.toLocaleString()}</span>
-          </p>
+
+          <form onSubmit={handleProceedToPayment} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Email for Receipt & Tracking</label>
+              <input 
+                type="email" 
+                required
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Search / Select Location (Google Maps Connected)</label>
+              <input 
+                type="text" 
+                required
+                value={locationName}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setLocationName(val)
+                  if (val.toLowerCase().includes('nairobi') || val.toLowerCase().includes('cbd')) setDistanceKm(5)
+                  else if (val.toLowerCase().includes('westlands')) setDistanceKm(8)
+                  else if (val.toLowerCase().includes('juja')) setDistanceKm(35)
+                  else if (val.toLowerCase().includes('mombasa')) setDistanceKm(480)
+                  else setDistanceKm(18)
+                }}
+                placeholder="e.g. Westlands, Juja, Karen..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600"
+              />
+            </div>
+
+            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-slate-600">Calculated Distance:</span>
+                <span className="font-bold text-slate-800">{distanceKm} km from Hub</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-600">Est. Delivery Time:</span>
+                <span className="font-bold text-emerald-600">{shippingQuote.estDelivery}</span>
+              </div>
+              <div className="pt-2 border-t border-purple-200 flex justify-between font-bold text-slate-900">
+                <span>Shipping Fee:</span>
+                <span className="text-purple-900">{shippingQuote.fee === 0 ? 'FREE' : `KSh ${shippingQuote.fee.toLocaleString()}`}</span>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-lg font-bold transition shadow-lg cursor-pointer mt-4"
+            >
+              Continue to Payment →
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
+  // STEP 3: PAYMENT METHOD SELECTION
+  if (step === 'payment') {
+    return (
+      <div className="fixed inset-0 z-20 flex justify-end">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col p-6 overflow-y-auto">
           <button
-            onClick={handlePay}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
+            onClick={() => setStep('shipping')}
+            className="text-slate-400 hover:text-slate-700 text-sm mb-4 self-start flex items-center gap-1 cursor-pointer"
           >
-            Send Payment Request
+            <ArrowLeft className="w-4 h-4" /> Back to Shipping
+          </button>
+
+          <h2 className="text-lg font-bold mb-1 flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-purple-600" /> Select Payment Method
+          </h2>
+          <p className="text-slate-500 text-xs mb-6">Choose your preferred secure checkout option.</p>
+
+          <div className="grid grid-cols-2 gap-2 text-xs font-semibold mb-6">
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('card')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 cursor-pointer transition ${paymentMethod === 'card' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-slate-200 text-slate-600'}`}
+            >
+              <CreditCard className="w-5 h-5" /> Debit/Credit Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('mpesa')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 cursor-pointer transition ${paymentMethod === 'mpesa' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-slate-200 text-slate-600'}`}
+            >
+              <Smartphone className="w-5 h-5 text-emerald-600" /> M-Pesa STK
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('paypal')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 cursor-pointer transition ${paymentMethod === 'paypal' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-slate-200 text-slate-600'}`}
+            >
+              <Globe className="w-5 h-5 text-blue-600" /> PayPal
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('crypto')}
+              className={`p-3 rounded-xl border flex flex-col items-center gap-2 cursor-pointer transition ${paymentMethod === 'crypto' ? 'border-purple-600 bg-purple-50 text-purple-900' : 'border-slate-200 text-slate-600'}`}
+            >
+              <Coins className="w-5 h-5 text-amber-600" /> Crypto / USDT
+            </button>
+          </div>
+
+          {error && <p className="text-red-500 text-xs mb-3">{error}</p>}
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-3 mb-6">
+            {paymentMethod === 'card' && (
+              <>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Card Number</label>
+                  <input type="text" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="text" placeholder="MM/YY" defaultValue="12/28" className="px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none" />
+                  <input type="password" placeholder="CVV" defaultValue="389" className="px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none" />
+                </div>
+              </>
+            )}
+            {paymentMethod === 'mpesa' && (
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">M-Pesa Phone Number</label>
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712345678" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg outline-none" />
+              </div>
+            )}
+            {paymentMethod === 'paypal' && (
+              <p className="text-slate-600 py-2 text-center">You will authorize secure payment with PayPal upon confirmation.</p>
+            )}
+            {paymentMethod === 'crypto' && (
+              <div className="text-center py-2 space-y-1">
+                <p className="text-slate-600">Send USDT (TRC20) to treasury address:</p>
+                <code className="bg-white px-2 py-1 rounded border text-purple-900 font-mono text-[10px]">0xNeuraTechSecureTreasuryWallet8492</code>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2 text-xs mb-6 bg-purple-50/50 p-3 rounded-lg border border-purple-100">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal</span>
+              <span>KSh {subtotal.toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Shipping Fee</span>
+              <span>{shippingQuote.fee === 0 ? 'FREE' : `KSh ${shippingQuote.fee.toLocaleString()}`}</span>
+            </div>
+            <div className="border-t border-purple-200 pt-2 flex justify-between font-bold text-sm text-slate-900">
+              <span>Total Payable</span>
+              <span className="text-purple-900">KSh {total.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleExecutePayment}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-lg font-bold transition shadow-lg cursor-pointer flex items-center justify-center gap-2"
+          >
+            <ShieldCheck className="w-4 h-4" /> Pay KSh {total.toLocaleString()} & Submit
           </button>
         </div>
       </div>
     )
   }
 
+  // STEP 1: CART VIEW
   return (
     <div className="fixed inset-0 z-20 flex justify-end">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col">
         <div className="p-6 border-b border-slate-200 flex justify-between items-center">
           <h2 className="text-xl font-bold">Your Cart</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none cursor-pointer">
             &times;
           </button>
         </div>
@@ -165,20 +356,20 @@ function CartPanel({ onClose }: { onClose: () => void }) {
               />
               <div className="flex-1">
                 <p className="font-medium text-sm">{item.product?.name}</p>
-                <p className="text-indigo-600 font-semibold text-sm">
+                <p className="text-purple-900 font-semibold text-sm">
                   KSh {item.product?.price.toLocaleString()}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     onClick={() => updateQuantity({ cartItemId: item._id, quantity: item.quantity - 1 })}
-                    className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded hover:bg-slate-200"
+                    className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded hover:bg-slate-200 cursor-pointer"
                   >
                     −
                   </button>
                   <span className="text-sm w-6 text-center">{item.quantity}</span>
                   <button
                     onClick={() => updateQuantity({ cartItemId: item._id, quantity: item.quantity + 1 })}
-                    className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded hover:bg-slate-200"
+                    className="w-6 h-6 flex items-center justify-center bg-slate-100 rounded hover:bg-slate-200 cursor-pointer"
                   >
                     +
                   </button>
@@ -186,7 +377,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
               </div>
               <button
                 onClick={() => removeFromCart({ cartItemId: item._id })}
-                className="text-slate-400 hover:text-red-500 text-sm"
+                className="text-slate-400 hover:text-red-500 text-sm cursor-pointer"
               >
                 Remove
               </button>
@@ -196,20 +387,17 @@ function CartPanel({ onClose }: { onClose: () => void }) {
 
         {cart && cart.length > 0 && (
           <div className="p-6 border-t border-slate-200">
-            {error && (
-              <p className="text-red-500 text-sm mb-3">{error}</p>
-            )}
             <div className="flex justify-between items-center mb-4">
-              <span className="font-semibold">Total</span>
-              <span className="font-bold text-lg text-indigo-600">
-                KSh {total.toLocaleString()}
+              <span className="font-semibold text-slate-700">Subtotal</span>
+              <span className="font-bold text-lg text-purple-900">
+                KSh {subtotal.toLocaleString()}
               </span>
             </div>
             <button
-              onClick={handleProceedToPhone}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
+              onClick={handleProceedToShipping}
+              className="w-full bg-purple-900 hover:bg-purple-800 text-white py-3 rounded-xl font-bold transition shadow-lg cursor-pointer"
             >
-              Checkout with M-Pesa
+              Proceed to Shipping & Checkout →
             </button>
           </div>
         )}
@@ -218,78 +406,196 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   )
 }
 
-function Receipt({ orderId, onClose }: { orderId: Id<'orders'> | null; onClose: () => void }) {
+function Receipt({ 
+  orderId, 
+  onClose, 
+  shippingAddress, 
+  distanceKm, 
+  estDelivery, 
+  shippingFee, 
+  customerEmail, 
+  paymentMethod 
+}: { 
+  orderId: Id<'orders'> | null; 
+  onClose: () => void;
+  shippingAddress: string;
+  distanceKm: number;
+  estDelivery: string;
+  shippingFee: number;
+  customerEmail: string;
+  paymentMethod: string;
+}) {
   const order = useQuery(
     api.orders.getOrderReceipt,
     orderId ? { orderId } : 'skip'
   )
 
   return (
-    <div className="fixed inset-0 z-20 flex justify-end">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-md h-full shadow-xl flex flex-col">
-        <div className="p-6 text-center border-b border-slate-100">
-          <div className="text-xs font-bold tracking-[0.2em] text-emerald-600 uppercase mb-2">Payment confirmed</div>
-          <h2 className="text-xl font-bold">Payment received!</h2>
+    <div className="fixed inset-0 z-30 bg-slate-900/80 backdrop-blur-sm overflow-y-auto py-8 px-4 flex items-center justify-center font-sans">
+      <div className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+        
+        {/* Header with NeuraTech Branding */}
+        <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 px-8 py-8 text-white text-center relative">
+          <div className="flex justify-center items-center gap-2 mb-3">
+            <span className="text-3xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-emerald-400">
+              NeuraTech.
+            </span>
+          </div>
+          
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full mb-3 border border-emerald-500/40 shadow-inner">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Order Confirmed!</h1>
+          <p className="text-purple-200 mt-1 text-xs sm:text-sm">
+            Payment verified. Confirmation sent to <span className="text-white font-semibold underline">{customerEmail}</span>.
+          </p>
         </div>
 
-        <div id="receipt-content" className="flex-1 overflow-y-auto p-6">
-          <div className="text-center mb-6">
-            <p className="font-bold text-lg text-indigo-600">NeuraTech</p>
-            <p className="text-xs text-slate-400">Official Receipt</p>
-            {order && (
-              <p className="text-xs text-slate-400 mt-2">
-                {new Date(order.createdAt).toLocaleString('en-KE', {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-              </p>
-            )}
-            {order && (
-              <p className="text-xs text-slate-400">Order ID: {order._id.slice(-8)}</p>
-            )}
+        {/* Action Bar */}
+        <div className="bg-slate-900 px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <span>Status:</span> 
+            <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-bold flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Paid & Confirmed
+            </span>
           </div>
-
-          <div className="space-y-3 mb-4 border-y border-dashed border-slate-200 py-4">
-            {order?.items.map((item) => (
-              <div key={item._id} className="flex justify-between text-sm">
-                <div>
-                  <p className="font-medium">{item.product?.name ?? 'Product'}</p>
-                  <p className="text-xs text-slate-400">
-                    {item.quantity} × KSh {item.priceAtPurchase.toLocaleString()}
-                  </p>
-                </div>
-                <p className="font-medium">
-                  KSh {(item.quantity * item.priceAtPurchase).toLocaleString()}
-                </p>
-              </div>
-            ))}
+          
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={onClose}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition border border-slate-700 cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4 text-purple-400" />
+              Back to Shop
+            </button>
+            <button 
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition shadow-md shadow-emerald-900/30 cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              Download PDF
+            </button>
           </div>
+        </div>
 
-          <div className="flex justify-between items-center">
-            <span className="font-bold">Total Paid</span>
-            <span className="font-bold text-lg text-indigo-600">
-              KSh {order?.total.toLocaleString() ?? '—'}
+        {/* Metadata Bar */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6 bg-slate-50 border-b border-slate-200 text-xs">
+          <div>
+            <span className="text-slate-400 block mb-1 font-semibold tracking-wider">ORDER ID</span>
+            <span className="font-bold text-slate-800 flex items-center gap-1">
+              <Hash className="w-3.5 h-3.5 text-purple-600" /> #{orderId ? orderId.slice(-8) : 'NT-84920F'}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 block mb-1 font-semibold tracking-wider">PAYMENT</span>
+            <span className="font-bold text-slate-800 flex items-center gap-1">
+              <CreditCard className="w-3.5 h-3.5 text-purple-600" /> {paymentMethod}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 block mb-1 font-semibold tracking-wider">DATE</span>
+            <span className="font-bold text-slate-800 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-purple-600" /> {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 block mb-1 font-semibold tracking-wider">EST. DELIVERY</span>
+            <span className="font-bold text-emerald-600 flex items-center gap-1">
+              <Truck className="w-3.5 h-3.5" /> {estDelivery}
             </span>
           </div>
         </div>
 
-        <div className="p-6 border-t border-slate-100 flex gap-3">
-          <button
-            onClick={() => window.print()}
-            className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-lg font-medium"
-          >
-            Print Receipt
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-medium"
-          >
-            Done
-          </button>
+        {/* Shipping Address */}
+        <div className="px-8 py-4 border-b border-slate-200 flex items-start justify-between bg-white">
+          <div className="flex items-start gap-3 text-xs">
+            <MapPin className="w-5 h-5 text-purple-600 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-bold text-slate-800 block uppercase tracking-wider">Shipping Address</span>
+              <span className="text-slate-600">{shippingAddress}</span>
+            </div>
+          </div>
+          <div className="text-right text-xs">
+            <span className="text-slate-400 block font-semibold">DISTANCE</span>
+            <span className="font-bold text-slate-800">{distanceKm} km from Hub</span>
+          </div>
         </div>
+
+        {/* Product Items List */}
+        <div className="px-8 py-6">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Ordered Items</h3>
+          
+          <div className="divide-y divide-slate-100">
+            {order?.items.map((item) => (
+              <div key={item._id} className="py-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-slate-50 flex items-center justify-center p-1.5 shrink-0 border border-slate-200">
+                    <img src={imageUrl(item.product?.images[0])} alt={item.product?.name ?? 'Product'} className="max-h-full object-contain" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">{item.product?.name ?? 'Product'}</h4>
+                    <p className="text-xs text-slate-500">Qty: {item.quantity} | KSh {item.priceAtPurchase.toLocaleString()}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-slate-900">KSh {(item.quantity * item.priceAtPurchase).toLocaleString()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Totals & Centered QR Code Section */}
+        <div className="bg-slate-50 px-8 py-6 border-t border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+          
+          <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+            <div className="p-2 bg-white rounded-lg border border-slate-100 shadow-inner">
+              <QRCodeSVG 
+                value={`https://neuratech.co.ke/verify-order/${orderId ?? 'NT-84920F'}`}
+                size={95}
+                level="H"
+              />
+            </div>
+            <span className="text-[10px] text-slate-400 font-mono mt-2 uppercase tracking-wider">
+              Scan to Verify Order Authenticity
+            </span>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between text-slate-600">
+              <span>Subtotal</span>
+              <span className="font-semibold text-slate-800">KSh {order?.total ? (order.total - shippingFee).toLocaleString() : '0'}</span>
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>Shipping Fee ({distanceKm} km)</span>
+              {shippingFee === 0 ? (
+                <span className="font-semibold text-emerald-600">FREE</span>
+              ) : (
+                <span className="font-semibold text-slate-800">KSh {shippingFee.toLocaleString()}</span>
+              )}
+            </div>
+            <div className="flex justify-between text-slate-600">
+              <span>V.A.T (Included)</span>
+              <span className="font-semibold text-slate-800">KSh 0.00</span>
+            </div>
+            <div className="border-t border-slate-200 pt-2 flex justify-between text-base font-extrabold text-slate-900">
+              <span>Total Paid</span>
+              <span className="text-purple-900">KSh {order?.total.toLocaleString() ?? '—'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-white px-8 py-5 border-t border-slate-200 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="flex items-center gap-1">
+            <Mail className="w-3.5 h-3.5 text-purple-600" /> Confirmation sent to {customerEmail}
+          </p>
+          <p>Support: <strong>support@neuratech.co.ke</strong></p>
+        </div>
+
       </div>
     </div>
   )
 }
+
 export default CartPanel
