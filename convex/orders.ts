@@ -84,13 +84,20 @@ export const getReceiptEmailData = internalQuery({
   args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.orderId)
-    if (!order || order.status !== "paid") return null
+    if (!order || order.status !== "paid" || !order.customerEmail) return null
     const items = await ctx.db.query("orderItems").withIndex("by_order", q => q.eq("orderId", order._id)).collect()
     const lines = await Promise.all(items.map(async item => ({
       name: (await ctx.db.get(item.productId))?.name ?? "Product",
       quantity: item.quantity, price: item.priceAtPurchase,
     })))
-    return { ...order, items: lines }
+    return {
+      ...order,
+      subtotal: order.subtotal ?? order.total,
+      shippingFee: order.shippingFee ?? 0,
+      shippingAddress: order.shippingAddress ?? "",
+      paymentMethod: order.paymentMethod ?? "Unknown",
+      items: lines,
+    }
   },
 })
 
@@ -99,6 +106,8 @@ export const sendReceiptEmail = internalAction({
   handler: async (ctx, args) => {
     const order = await ctx.runQuery(internal.orders.getReceiptEmailData, { orderId: args.orderId })
     if (!order) return
+    const customerEmail = order.customerEmail
+    if (!customerEmail) return
     const resendKey = process.env.RESEND_API_KEY
     if (!resendKey) { console.error("RESEND_API_KEY is not configured"); return }
     const resend = new Resend(resendKey)
@@ -106,7 +115,7 @@ export const sendReceiptEmail = internalAction({
     try {
       await resend.emails.send({
         from: "NeuraTech <onboarding@resend.dev>", // Replace with your domain once verified
-        to: order.customerEmail,
+        to: customerEmail,
         subject: `Your NeuraTech Order Receipt [${args.orderId}]`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
@@ -131,7 +140,7 @@ export const sendReceiptEmail = internalAction({
           </div>
         `,
       })
-      console.log(`[Email Dispatch Success] Sent receipt to ${order.customerEmail}`)
+      console.log(`[Email Dispatch Success] Sent receipt to ${customerEmail}`)
     } catch (err) {
       console.error("[Email Dispatch Failure]", err)
     }
