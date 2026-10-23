@@ -2,14 +2,8 @@ import { mutation, query, internalMutation } from "./_generated/server"
 import { v } from "convex/values"
 
 export const createOrder = mutation({
-  args: {
-    customerEmail: v.optional(v.string()),
-    shippingAddress: v.optional(v.string()),
-    distanceKm: v.optional(v.number()),
-    shippingFee: v.optional(v.number()),
-    paymentMethod: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
@@ -35,7 +29,7 @@ export const createOrder = mutation({
       })
     )
 
-    const subtotal = itemsWithProducts.reduce(
+    const total = itemsWithProducts.reduce(
       (sum, item) => sum + item.product.price * item.quantity,
       0
     )
@@ -46,19 +40,10 @@ export const createOrder = mutation({
       }
     }
 
-    const shippingFee = args.shippingFee ?? 0
-    const total = subtotal + shippingFee
-
     const orderId = await ctx.db.insert("orders", {
       userId: user._id,
       status: "paid",
-      subtotal,
-      shippingFee,
       total,
-      shippingAddress: args.shippingAddress ?? "Nairobi CBD",
-      distanceKm: args.distanceKm ?? 2,
-      customerEmail: args.customerEmail ?? identity.email ?? "",
-      paymentMethod: args.paymentMethod ?? "CARD",
       createdAt: Date.now(),
     })
 
