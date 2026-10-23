@@ -22,6 +22,22 @@ interface CheckoutModalProps {
   onCompleteOrder: (orderData: any) => void;
 }
 
+// Preset locations with accurate distances from Nairobi Hub
+const KENYAN_LOCATIONS = [
+  { name: 'Nairobi CBD', distance: 2 },
+  { name: 'Westlands, Nairobi', distance: 7 },
+  { name: 'Kilimani, Nairobi', distance: 6 },
+  { name: 'Karen, Nairobi', distance: 18 },
+  { name: 'Juja Town, Kiambu', distance: 35 },
+  { name: 'Juja Stage, Kiambu', distance: 36 },
+  { name: 'Thika Town, Kiambu', distance: 42 },
+  { name: 'Ruiru, Kiambu', distance: 22 },
+  { name: 'Kiambu Town', distance: 16 },
+  { name: 'Nakuru Town', distance: 160 },
+  { name: 'Mombasa CBD', distance: 480 },
+  { name: 'Eldoret Town', distance: 310 },
+];
+
 export default function CheckoutModal({ cartItems, subtotal, onClose, onCompleteOrder }: CheckoutModalProps) {
   // Navigation Steps: 'shipping' | 'payment' | 'review'
   const [step, setStep] = useState<'shipping' | 'payment' | 'review'>('shipping');
@@ -29,7 +45,11 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
   // Shipping & Location State
   const [locationName, setLocationName] = useState('Nairobi CBD');
   const [distanceKm, setDistanceKm] = useState(5);
-  const [customerEmail, setCustomerEmail] = useState('wycliff@neuratech.co.ke');
+  const [customerEmail, setCustomerEmail] = useState('wycliffemutua8463@gmail.com');
+  
+  // Autocomplete suggestions state
+  const [query, setQuery] = useState('Nairobi CBD');
+  const [suggestions, setSuggestions] = useState<typeof KENYAN_LOCATIONS>([]);
 
   // Payment Method State
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'mpesa' | 'paypal' | 'crypto'>('card');
@@ -41,6 +61,30 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
   // Dynamic Shipping Rate Calculation
   const shippingQuote = calculateShippingQuote(locationName, distanceKm, subtotal);
   const total = subtotal + shippingQuote.fee;
+
+  // Handle live typing for location autocomplete
+  const handleLocationInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setQuery(val);
+    setLocationName(val);
+
+    if (val.trim().length > 0) {
+      const filtered = KENYAN_LOCATIONS.filter((loc) =>
+        loc.name.toLowerCase().includes(val.toLowerCase())
+      );
+      setSuggestions(filtered);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  // Handle selecting a location from the dropdown
+  const handleSelectLocation = (loc: { name: string; distance: number }) => {
+    setQuery(loc.name);
+    setLocationName(loc.name);
+    setDistanceKm(loc.distance);
+    setSuggestions([]);
+  };
 
   const handleProceedToPayment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +125,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           specs: 'Standard Edition / Quality Checked',
           qty: item.quantity,
           price: item.product.price,
-          image: item.product.images?.[0] || '/images/HP ProBook 640 G5G4.jpg',
+          image: item.product.images?.[0] || '/images/laptop.jpg',
         })),
       };
       onCompleteOrder(finalOrder);
@@ -106,7 +150,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           </div>
         </div>
 
-        {/* STEP 1: SHIPPING LOCATION */}
+        {/* STEP 1: SHIPPING LOCATION WITH AUTOCOMPLETE */}
         {step === 'shipping' && (
           <form onSubmit={handleProceedToPayment} className="p-6 sm:p-8 space-y-6">
             <div>
@@ -114,7 +158,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                 <MapPin className="w-5 h-5 text-purple-600" /> Delivery Destination & Rates
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                Nairobi orders over KSh 10,000 enjoy <strong>FREE shipping</strong>. Places beyond 50 km deliver in 1–2 business days.
+                Nairobi orders over KSh 10,000 enjoy <strong>FREE shipping</strong>. Upcountry locations deliver in 1–2 business days.
               </p>
             </div>
 
@@ -132,25 +176,33 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Search Delivery Location (Google Maps Enabled)</label>
+              {/* Location Autocomplete Input */}
+              <div className="relative">
+                <label className="block font-semibold text-slate-700 mb-1">Search Delivery Location (Type "Juja", "Westlands"...)</label>
                 <input 
                   type="text" 
                   required
-                  value={locationName}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setLocationName(val);
-                    // Simulated Google Distance matrix lookup
-                    if (val.toLowerCase().includes('cbd') || val.toLowerCase().includes('nairobi')) setDistanceKm(5);
-                    else if (val.toLowerCase().includes('westlands')) setDistanceKm(8);
-                    else if (val.toLowerCase().includes('juja')) setDistanceKm(35);
-                    else if (val.toLowerCase().includes('mombasa') || val.toLowerCase().includes('nakuru')) setDistanceKm(480);
-                    else setDistanceKm(20);
-                  }}
-                  placeholder="e.g. Westlands, Juja, Nakuru, Karen..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600"
+                  value={query}
+                  onChange={handleLocationInput}
+                  placeholder="e.g. Juja Town, Juja Stage, Westlands..."
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-purple-600 bg-white"
                 />
+
+                {/* Suggestion Dropdown List */}
+                {suggestions.length > 0 && (
+                  <ul className="absolute z-30 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto mt-1">
+                    {suggestions.map((item, idx) => (
+                      <li
+                        key={idx}
+                        onClick={() => handleSelectLocation(item)}
+                        className="px-3 py-2.5 hover:bg-purple-50 cursor-pointer flex justify-between items-center text-slate-700 border-b border-slate-100 last:border-none"
+                      >
+                        <span className="font-medium text-slate-800">{item.name}</span>
+                        <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-semibold">{item.distance} km away</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 bg-purple-50/70 p-4 rounded-xl border border-purple-100">
@@ -201,7 +253,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
               <p className="text-xs text-slate-500 mt-1">Select your gateway below.</p>
             </div>
 
-            {/* Gateway Selector Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-semibold">
               <button
                 type="button"
@@ -235,7 +286,6 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
 
             {error && <p className="text-red-500 text-xs">{error}</p>}
 
-            {/* Input Details Container */}
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-3">
               {paymentMethod === 'card' && (
                 <>
