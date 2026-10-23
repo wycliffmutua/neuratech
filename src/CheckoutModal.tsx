@@ -53,7 +53,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const saveOrderMutation = useMutation(api.orders.createOrder);
+  const createOrderMutation = useMutation(api.orders.createOrder);
   const shippingQuote = calculateShippingQuote(locationName, distanceKm, subtotal);
   const total = subtotal + shippingQuote.fee;
 
@@ -98,31 +98,20 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     setStep('review');
 
     try {
-      const generatedOrderId = `#NT-${Math.floor(100000 + Math.random() * 900000)}`;
-      const formattedItems = cartItems.map((item, idx) => ({
-        id: item._id || String(idx),
-        name: item.product.name,
-        specs: 'Standard Edition / Quality Checked',
-        qty: item.quantity,
-        price: item.product.price,
-        image: item.product.images?.[0] || '/images/laptop.jpg',
-      }));
-
-      // Save to Convex backend & trigger email dispatch log
-      await saveOrderMutation({
-        orderId: generatedOrderId,
-        customerEmail,
-        paymentMethod: paymentMethod.toUpperCase(),
-        shippingAddress: locationName,
-        distanceKm: shippingQuote.distanceKm,
-        subtotal,
-        shippingFee: shippingQuote.fee,
-        total,
-        items: formattedItems,
-      });
+      await createOrderMutation({});
 
       setTimeout(() => {
         setIsProcessing(false);
+        const generatedOrderId = `#NT-${Math.floor(100000 + Math.random() * 900000)}`;
+        const formattedItems = cartItems.map((item, idx) => ({
+          id: item._id || String(idx),
+          name: item.product.name,
+          specs: 'Standard Edition / Quality Checked',
+          qty: item.quantity,
+          price: item.product.price,
+          image: item.product.images?.[0] || '/images/laptop.jpg',
+        }));
+
         onCompleteOrder({
           orderId: generatedOrderId,
           paymentMethod: paymentMethod.toUpperCase(),
@@ -136,7 +125,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           customerEmail,
           status: 'Paid' as const,
           items: formattedItems,
-        });
+        } as any);
       }, 2000);
     } catch (err) {
       setIsProcessing(false);
@@ -351,8 +340,8 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
                   <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Processing & Dispatched to Email</h2>
-                  <p className="text-xs text-slate-500 mt-1">Saving order and transmitting digital receipt...</p>
+                  <h2 className="text-xl font-bold text-slate-900">Processing Order</h2>
+                  <p className="text-xs text-slate-500 mt-1">Saving order securely to database...</p>
                 </div>
               </>
             ) : (
