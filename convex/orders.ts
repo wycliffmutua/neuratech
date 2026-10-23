@@ -1,11 +1,14 @@
-import { mutation, query, action, internalMutation } from "./_generated/server"
+import { mutation, query, internalAction, internalMutation, internalQuery } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
 import { Resend } from "resend"
 
 export const createOrder = mutation({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    shippingAddress: v.string(), distanceKm: v.number(), shippingFee: v.number(),
+    customerEmail: v.string(), paymentMethod: v.string(),
+  },
+  handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) throw new Error("Not authenticated")
 
@@ -31,7 +34,7 @@ export const createOrder = mutation({
       })
     )
 
-    const total = itemsWithProducts.reduce(
+    const subtotal = itemsWithProducts.reduce(
       (sum, item) => sum + item.product.price * item.quantity,
       0
     )
@@ -44,8 +47,14 @@ export const createOrder = mutation({
 
     const orderId = await ctx.db.insert("orders", {
       userId: user._id,
-      status: "paid",
-      total,
+      status: "pending",
+      subtotal,
+      shippingFee: args.shippingFee,
+      total: subtotal + args.shippingFee,
+      shippingAddress: args.shippingAddress,
+      distanceKm: args.distanceKm,
+      customerEmail: args.customerEmail,
+      paymentMethod: args.paymentMethod,
       createdAt: Date.now(),
     })
 
@@ -66,61 +75,63 @@ export const createOrder = mutation({
       await ctx.db.delete(item._id)
     }
 
-    // Schedule automatic email dispatch to customer
-    const customerEmail = identity.email || user.email
-    if (customerEmail) {
-      const itemsList = itemsWithProducts
-        .map((i) => `${i.quantity}x ${i.product.name}`)
-        .join(", ")
-
-      await ctx.scheduler.runAfter(0, internal.orders.sendReceiptEmail, {
-        customerEmail,
-        orderId: String(orderId),
-        total,
-        itemsSummary: itemsList,
-      })
-    }
-
     return orderId
   },
 })
 
 // Internal action to call Resend API
-export const sendReceiptEmail = action({
-  args: {
-    customerEmail: v.string(),
-    orderId: v.string(),
-    total: v.number(),
-    itemsSummary: v.string(),
-  },
+export const getReceiptEmailData = internalQuery({
+  args: { orderId: v.id("orders") },
   handler: async (ctx, args) => {
-    const resend = new Resend(process.env.RESEND_API_KEY)
+    const order = await ctx.db.get(args.orderId)
+    if (!order || order.status !== "paid") return null
+    const items = await ctx.db.query("orderItems").withIndex("by_order", q => q.eq("orderId", order._id)).collect()
+    const lines = await Promise.all(items.map(async item => ({
+      name: (await ctx.db.get(item.productId))?.name ?? "Product",
+      quantity: item.quantity, price: item.priceAtPurchase,
+    })))
+    return { ...order, items: lines }
+  },
+})
+
+export const sendReceiptEmail = internalAction({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const order = await ctx.runQuery(internal.orders.getReceiptEmailData, { orderId: args.orderId })
+    if (!order) return
+    const resendKey = process.env.RESEND_API_KEY
+    if (!resendKey) { console.error("RESEND_API_KEY is not configured"); return }
+    const resend = new Resend(resendKey)
 
     try {
       await resend.emails.send({
         from: "NeuraTech <onboarding@resend.dev>", // Replace with your domain once verified
-        to: args.customerEmail,
+        to: order.customerEmail,
         subject: `Your NeuraTech Order Receipt [${args.orderId}]`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
             <div style="background-color: #0f172a; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-              <h1 style="color: #a855f7; margin: 0; font-size: 24px;">NeuraTech.</h1>
-              <p style="color: #94a3b8; font-size: 14px; margin-top: 5px;">Official Purchase Confirmation</p>
+              <div style="display:inline-block;border:2px solid #a855f7;border-radius:12px;padding:8px 12px;color:#a855f7;font-weight:bold;font-size:20px">N</div>
+              <h1 style="color: #a855f7; margin: 8px 0 0; font-size: 24px;">NeuraTech</h1>
+              <p style="color: #94a3b8; font-size: 14px; margin-top: 5px;">Official Purchase Receipt</p>
             </div>
             <div style="padding: 20px; color: #334155;">
               <h2>Thank you for your purchase!</h2>
               <p>Your payment has been successfully confirmed and processed.</p>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p><strong>Order ID:</strong> ${args.orderId}</p>
-              <p><strong>Items:</strong> ${args.itemsSummary}</p>
-              <p><strong>Total Paid:</strong> KSh ${args.total.toLocaleString()}</p>
+              <p><strong>Payment:</strong> ${order.paymentMethod}</p>
+              <p><strong>Shipping address:</strong> ${order.shippingAddress}</p>
+              <table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">Item</th><th>Qty</th><th align="right">Amount</th></tr></thead><tbody>${order.items.map((item) => `<tr><td style="padding:8px 0;border-top:1px solid #e2e8f0">${item.name}</td><td align="center">${item.quantity}</td><td align="right">KSh ${(item.price * item.quantity).toLocaleString()}</td></tr>`).join("")}</tbody></table>
+              <p><strong>Subtotal:</strong> KSh ${order.subtotal.toLocaleString()} &nbsp; <strong>Shipping:</strong> KSh ${order.shippingFee.toLocaleString()}</p>
+              <p><strong>Total Paid:</strong> KSh ${order.total.toLocaleString()}</p>
               <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
               <p style="font-size: 12px; color: #64748b;">If you have any questions, reach out to support@neuratech.co.ke.</p>
             </div>
           </div>
         `,
       })
-      console.log(`[Email Dispatch Success] Sent receipt to ${args.customerEmail}`)
+      console.log(`[Email Dispatch Success] Sent receipt to ${order.customerEmail}`)
     } catch (err) {
       console.error("[Email Dispatch Failure]", err)
     }
@@ -289,9 +300,25 @@ export const markOrderPaidByCheckoutId = internalMutation({
 
     if (!order) return
 
-    await ctx.db.patch(order._id, {
-      status: args.success ? "paid" : "cancelled",
-    })
+    if (order.status !== "pending") return
+    await ctx.db.patch(order._id, { status: args.success ? "paid" : "cancelled" })
+    if (args.success && order.customerEmail) {
+      await ctx.scheduler.runAfter(0, internal.orders.sendReceiptEmail, { orderId: order._id })
+    }
+  },
+})
+
+export const confirmSimulatedPayment = mutation({
+  args: { orderId: v.id("orders") },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) throw new Error("Not authenticated")
+    const order = await ctx.db.get(args.orderId)
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", q => q.eq("clerkId", identity.subject)).unique()
+    if (!user || !order || user._id !== order.userId) throw new Error("Not authorized")
+    if (!order || order.status !== "pending") return
+    await ctx.db.patch(order._id, { status: "paid" })
+    await ctx.scheduler.runAfter(0, internal.orders.sendReceiptEmail, { orderId: order._id })
   },
 })
 
@@ -303,6 +330,8 @@ export const getOrderReceipt = query({
 
     const order = await ctx.db.get(args.orderId)
     if (!order) return null
+    const user = await ctx.db.query("users").withIndex("by_clerk_id", q => q.eq("clerkId", identity.subject)).unique()
+    if (!user || user._id !== order.userId) return null
 
     const items = await ctx.db
       .query("orderItems")

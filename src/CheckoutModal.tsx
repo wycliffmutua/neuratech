@@ -54,6 +54,7 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
   const [error, setError] = useState<string | null>(null);
 
   const createOrderMutation = useMutation(api.orders.createOrder);
+  const confirmSimulatedPayment = useMutation(api.orders.confirmSimulatedPayment);
   const shippingQuote = calculateShippingQuote(locationName, distanceKm, subtotal);
   const total = subtotal + shippingQuote.fee;
 
@@ -98,11 +99,12 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
     setStep('review');
 
     try {
-      await createOrderMutation({});
+      const orderId = await createOrderMutation({ shippingAddress: locationName, distanceKm: shippingQuote.distanceKm, shippingFee: shippingQuote.fee, customerEmail, paymentMethod: paymentMethod.toUpperCase() });
+      await confirmSimulatedPayment({ orderId });
 
       setTimeout(() => {
         setIsProcessing(false);
-        const generatedOrderId = `#NT-${Math.floor(100000 + Math.random() * 900000)}`;
+        const generatedOrderId = `#${orderId.slice(-8)}`;
         const formattedItems = cartItems.map((item, idx) => ({
           id: item._id || String(idx),
           name: item.product.name,

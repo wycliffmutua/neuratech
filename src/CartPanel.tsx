@@ -12,6 +12,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
   const updateQuantity = useMutation(api.cart.updateQuantity)
   const removeFromCart = useMutation(api.cart.removeFromCart)
   const createOrder = useMutation(api.orders.createOrder)
+  const confirmSimulatedPayment = useMutation(api.orders.confirmSimulatedPayment)
   const initiateSTKPush = useAction(api.mpesa.initiateSTKPush)
 
   // Expanded step flow: 'cart' | 'shipping' | 'payment' | 'phone' | 'waiting' | 'success' | 'failed'
@@ -77,7 +78,7 @@ function CartPanel({ onClose }: { onClose: () => void }) {
       }
 
       try {
-        const orderId = await createOrder({})
+        const orderId = await createOrder({ shippingAddress: locationName, distanceKm: shippingQuote.distanceKm, shippingFee: shippingQuote.fee, customerEmail, paymentMethod: paymentMethod.toUpperCase() })
         setPendingOrderId(orderId)
         setStep('waiting')
         await initiateSTKPush({ phoneNumber: phone, amount: amountToPay, orderId })
@@ -88,13 +89,19 @@ function CartPanel({ onClose }: { onClose: () => void }) {
     } else {
       // Simulate Card, PayPal, or Crypto verification & processing review
       try {
-        const orderId = await createOrder({})
+        const orderId = await createOrder({ shippingAddress: locationName, distanceKm: shippingQuote.distanceKm, shippingFee: shippingQuote.fee, customerEmail, paymentMethod: paymentMethod.toUpperCase() })
         setPendingOrderId(orderId)
         setStep('waiting')
         
         // Simulating gateway confirmation delay
         setTimeout(async () => {
-          setStep('success')
+          try {
+            await confirmSimulatedPayment({ orderId })
+            setStep('success')
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Payment confirmation failed')
+            setStep('failed')
+          }
         }, 2500)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Transaction verification failed')
@@ -429,14 +436,17 @@ function Receipt({
     api.orders.getOrderReceipt,
     orderId ? { orderId } : 'skip'
   )
+  const orderDate = order ? new Date(order.createdAt).toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric' }) : new Date().toLocaleDateString('en-KE')
 
   return (
     <div className="fixed inset-0 z-30 bg-slate-900/80 backdrop-blur-sm overflow-y-auto py-8 px-4 flex items-center justify-center font-sans">
-      <div className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+      <style>{`@media print { @page { size: A4 portrait; margin: 10mm; } body * { visibility: hidden !important; } #printable-receipt, #printable-receipt * { visibility: visible !important; } #printable-receipt { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; max-width: none !important; box-shadow: none !important; border: 0 !important; } .print-hidden { display:none !important; } }`}</style>
+      <div id="printable-receipt" className="max-w-3xl w-full bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
         
         {/* Header with NeuraTech Branding */}
         <div className="bg-gradient-to-r from-slate-900 via-purple-950 to-indigo-950 px-8 py-8 text-white text-center relative">
           <div className="flex justify-center items-center gap-2 mb-3">
+            <span aria-hidden="true" className="inline-flex h-10 w-10 items-center justify-center rounded-xl border-2 border-purple-400 text-xl font-black text-purple-300">N</span>
             <span className="text-3xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-emerald-400">
               NeuraTech.
             </span>
@@ -453,7 +463,7 @@ function Receipt({
         </div>
 
         {/* Action Bar */}
-        <div className="bg-slate-900 px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+        <div className="bg-slate-900 px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 print-hidden">
           <div className="flex items-center gap-2 text-xs text-slate-300">
             <span>Status:</span> 
             <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full font-bold flex items-center gap-1">
@@ -496,8 +506,8 @@ function Receipt({
           </div>
           <div>
             <span className="text-slate-400 block mb-1 font-semibold tracking-wider">DATE</span>
-            <span className="font-bold text-slate-800 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-purple-600" /> {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              <span className="font-bold text-slate-800 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-purple-600" /> {orderDate}
             </span>
           </div>
           <div>
