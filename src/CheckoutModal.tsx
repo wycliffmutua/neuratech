@@ -112,7 +112,8 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           image: item.product.images?.[0] || '/images/laptop.jpg',
         }));
 
-        onCompleteOrder({
+        // Cast callback as any to bypass strict never-inference from parent
+        (onCompleteOrder as any)({
           orderId: generatedOrderId,
           paymentMethod: paymentMethod.toUpperCase(),
           date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -123,9 +124,9 @@ export default function CheckoutModal({ cartItems, subtotal, onClose, onComplete
           shippingFee: shippingQuote.fee,
           total,
           customerEmail,
-          status: 'Paid' as const,
+          status: 'Paid',
           items: formattedItems,
-        } as any);
+        });
       }, 2000);
     } catch (err) {
       setIsProcessing(false);
