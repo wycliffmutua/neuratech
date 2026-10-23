@@ -17,6 +17,7 @@ import type { Id } from "../convex/_generated/dataModel";
 import MyOrders from "./MyOrders";
 import OrderReceipt from './OrderReceipt';
 import { imageUrl } from './imageUrl';
+
 type IconName =
   | "bag"
   | "search"
@@ -184,6 +185,7 @@ function App() {
     useState<Id<"products"> | null>(null);
   const [ordersOpen, setOrdersOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
+
   const products = useQuery(api.products.listProducts);
   const cart = useQuery(api.cart.getCart);
   const addToCart = useMutation(api.cart.addToCart);
@@ -192,7 +194,9 @@ function App() {
   const { isSignedIn } = useAuth();
   const { openSignIn } = useClerk();
   const [cartMessage, setCartMessage] = useState<string | null>(null);
+
   const cartCount = cart?.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+
   const filteredProducts = useMemo(
     () =>
       products?.filter((product) => {
@@ -214,9 +218,11 @@ function App() {
       }),
     [activeCategory, products, search],
   );
+
   const featuredProduct = products?.find((product) => product.images[0]);
   const showSignIn = (callback?: () => void) =>
     isSignedIn ? callback?.() : openSignIn();
+
   const handleAdd = async (productId: Id<"products">) => {
     if (!isSignedIn) {
       openSignIn();
@@ -236,6 +242,7 @@ function App() {
       );
     }
   };
+
   const selectCategory = (subcategory: string | null) => {
     setActiveCategory(subcategory);
     document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
@@ -250,13 +257,14 @@ function App() {
       />
     );
   if (ordersOpen) return <MyOrders onClose={() => setOrdersOpen(false)} />;
-if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
+  if (receiptOpen) return <OrderReceipt onClose={() => setReceiptOpen(false)} />;
+
   return (
     <div className="shop-page">
       <div className="utility-bar">
         <span>
           <Icon name="truck" size={13} /> Free shipping in Nairobi on orders
-          over KSh 5,000
+          over KSh 10,000
         </span>
         <i />
         <span>
